@@ -5,9 +5,13 @@ import re
 
 
 options = {
-    "server": "http://jira.clavister.com"
+    "server": "http://jira.clavister.com",
+    "basic_auth": ("readonly", "NotSecret"),
+    "proxies": {"http": "http://proxy.clavister.com:8080"},
+    "timeout": 10
 }
-jira = JIRA(options = options, basic_auth = ("readonly", "NotSecret"), proxies = {"http": "http://proxy.clavister.com:8080"}, timeout=10)
+
+jira = JIRA(**options)
 
 
 issues = jira.search_issues("project = COP AND created >= -7d", maxResults=1000)
@@ -50,9 +54,7 @@ label_scorepatterns = {  # remember, several entry lines can match and will get 
     r'emergenc': 10
 }
 
-def scorestring(string, patterns = None):
-    if not patterns:
-        patterns = string_scorepatterns
+def scorestring(string, patterns = string_scorepatterns):
     ret = 0
     for pattern,score in patterns.items():
         if re.search(pattern, string, re.IGNORECASE):
@@ -100,7 +102,7 @@ out(Markup("""<!DOCTYPE html>
 """).format(server=options['server'], **locals()))
 # separate non-formatted section for CSS because lots of { }
 out(Markup("""
-    li { padding: 10px; }
+    li {  }
     body {
         font-family: BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
         font-size: 14px;
@@ -109,6 +111,28 @@ out(Markup("""
         font-size: smaller;
         padding-top: 4px;
         display: inline-block;
+        /* collapsible stuff that integrates with toggle and label */
+        max-height: 3rem;
+        overflow: hidden;
+        transition: max-height .25s ease-in-out;
+    }
+    .description-toggle {
+        display: none;
+    }
+    .description-toggle:checked + .description {
+        max-height: 100em;
+    }
+    .description-toggle:checked + .description > .description-fader {
+        display: none;
+    }
+    .description-fader {
+        content:'';
+        width: 100%;
+        height: 2rem;
+        position: absolute;
+        left:0;
+        bottom: 0;
+        background:linear-gradient(#ffffff60 0%, #ffffffff 100%);
     }
     .status {
         border-radius: 3px;
@@ -140,8 +164,9 @@ out(Markup("""
     }
     .subbox {
         display: inline-block;
-        padding-left: 8em;
+        padding-left: 10%;
         padding-top: 2px;
+        margin-bottom: 1rem;
     }
     .score {
         padding-left: 2em;
@@ -200,7 +225,7 @@ for groupidx,issues in sorted(groups.items()):
         f = issue.fields
         shortdesc = f.description.strip()
         shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
-        shortdesc = shortdesc[0:200]
+        # shortdesc = shortdesc[0:200]
         shortdesc = str(escape(shortdesc))   # str to not trigger escaping in re.sub()
         summary = str(escape(f.summary))     # str to not trigger escaping in re.sub()
         for pattern,score in string_scorepatterns.items():
@@ -209,8 +234,9 @@ for groupidx,issues in sorted(groups.items()):
                 shortdesc = re.sub(pattern, r"<b>\g<0></b>", str(shortdesc), flags=re.IGNORECASE)
 
         summary = Markup(summary)
-        shortdesc = Markup(shortdesc).split("\n")[0:3]
-        shortdesc = Markup("<br>").join( shortdesc ) + "..."
+        # shortdesc = Markup(shortdesc).split("\n")[0:3]
+        # shortdesc = Markup("<br>").join( shortdesc ) + "..."
+        shortdesc = Markup( shortdesc.replace("\n", Markup("<br>")) )
 
         if not f.resolution:
             resolution = ""
@@ -223,12 +249,17 @@ for groupidx,issues in sorted(groups.items()):
 <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
 <span class="summary">{summary}</span><span class="score">{issue.score}</span>
 <br>
-<div class="subbox">
+<div class="subbox" style="position: relative;"> <!-- silly position:relative has to be there for the fader to work -->
 <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
 <span class="resolution">{resolution}</span>
 <br>
-<span class="description">{shortdesc}</span></li>
+<input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
+<label for="description-toggle-{issue.id}" class="description">
+{shortdesc}<div class="description-fader"></div></label>
+
 </div>
+
+</li>
 """).format(**locals()))
 
     # End of group
