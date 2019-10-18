@@ -147,26 +147,60 @@ out(Markup(f"""
     </style>
 </head>
 <body>
+"""))
+
+groups = {
+    # (sort,groupname) = list of issues
+}
+for issue in issues:
+    f = issue.fields
+    if f.resolution:
+        if isearch(r"fixed", f.resolution.name):
+            group=(3,"Resolved: Fixed")
+        else:
+            group=(4,"Resolved: Other")
+
+    elif isearch(r"(need|wait)", f.status.name):
+        group (1,"Waiting for something")
+
+    elif f.status.statusCategory.key=='new' and not isearch(r"confirmed", f.status.name):
+        group=(0,"Unconfirmed / To Do / New")
+
+    else:
+        group=(2,"Confirmed / Progressing")
+
+    if not group in groups:
+        groups[group] = []
+
+    groups[group].append(issue)
+
+
+for groupkey,issues in sorted(groups.items()):
+    (sort,group) = groupkey
+    print(sort, groupkey, len(issues))
+
+    out(Markup(f"""
+<h2>{group}</h2>
 <ul>
 """))
 
-for issue in sorted(issues, key=lambda i: i.score, reverse=True):
-    f = issue.fields
-    shortdesc = f.description[0:200].strip()
-    shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
-    shortdesc = Markup("<br>").join(shortdesc.split("\n")[0:3])
-    shortdesc += "..."
-    summary = escape(f.summary)
-    for pattern,score in string_scorepatterns.items():
-        if score>0:
-            summary = re.sub(pattern, r"<b>\g<0></b>", summary, flags=re.IGNORECASE)
-            shortdesc = re.sub(pattern, r"<b>\g<0></b>", shortdesc, flags=re.IGNORECASE)
+    for issue in sorted(issues, key=lambda i: i.score, reverse=True):
+        f = issue.fields
+        shortdesc = f.description[0:200].strip()
+        shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
+        shortdesc = Markup("<br>").join(shortdesc.split("\n")[0:3])
+        shortdesc += "..."
+        summary = escape(f.summary)
+        for pattern,score in string_scorepatterns.items():
+            if score>0:
+                summary = re.sub(pattern, r"<b>\g<0></b>", summary, flags=re.IGNORECASE)
+                shortdesc = re.sub(pattern, r"<b>\g<0></b>", shortdesc, flags=re.IGNORECASE)
 
-    if not f.resolution:
-        resolution = ""
-    else:
-        resolution = f"Resolution: {f.resolution.name}"
-    out(Markup(f"""
+        if not f.resolution:
+            resolution = ""
+        else:
+            resolution = f"Resolution: {f.resolution.name}"
+        out(Markup(f"""
 <li>
 <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
@@ -179,6 +213,10 @@ for issue in sorted(issues, key=lambda i: i.score, reverse=True):
 <br>
 <span class="description">{shortdesc}</span></li>
 </div>
+"""))
+
+    out(Markup(f"""
+</ul>
 """))
 
 out(Markup(f"""
