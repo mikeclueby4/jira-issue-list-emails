@@ -36,10 +36,10 @@ for idx,prio in enumerate(priorities):
 # scoring of STRINGS
 string_scorepatterns = {  # remember, several entry lines can match and will get added
     r'(vuln|attack|hack)': 7,
-    r'(crash|hang|freeze)': 7,
-    r'(fail|overflow|stops? work)': 3,
-    r'(bug|overflow|exception|watchdog|lockdown)': 5,
-    r'emergenc': 10
+    r'(crash|\bhang|freeze)': 7,
+    r'(fail|overflow|stops? work|break|broke)': 3,
+    r'(bug|overflow|exception|watchdog|lock[ed ]*down)': 5,
+    r'(emergenc)': 10
 }
 
 # scoring of LABELS
@@ -105,27 +105,41 @@ out(Markup("""
     }
     .description {
         font-size: smaller;
-        padding-top: 8px;
+        padding-top: 4px;
         display: inline-block;
     }
     .status {
         border-radius: 3px;
+        border: 1px solid;
         display: inline-block;
         font-weight: bold;
-        padding: 2px 5px;
+        padding: 2px 8px;
         text-align: center;
         text-transform: uppercase;
         box-sizing: border-box;
-        font-size: x-small;
-        background-color: #808080;
-        color: #ffffff;
+        font-size: 11px;
+        letter-spacing: 0;
+    }
+    .status-color-blue-gray {
+        border-color: #e4e8ed;
+        color: #4a6785;
+    }
+    .status-color-green {
+        color: #14892c;
+        border-color: #b2d8b9;
+    }
+    .status-color-yellow {
+        border-color: #ffe28c;
+        color: #594300;
     }
     .resolution {
-        font-size: x-small;
+        font-size: 11px;
+        font-weight: bold;
     }
     .subbox {
         display: inline-block;
         padding-left: 8em;
+        padding-top: 2px;
     }
 
     """))
@@ -142,6 +156,12 @@ for issue in sorted(issues, key=lambda i: i.score, reverse=True):
     shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
     shortdesc = Markup("<br>").join(shortdesc.split("\n")[0:3])
     shortdesc += "..."
+    summary = escape(f.summary)
+    for pattern,score in string_scorepatterns.items():
+        if score>0:
+            summary = re.sub(pattern, r"<b>\g<0></b>", summary, flags=re.IGNORECASE)
+            shortdesc = re.sub(pattern, r"<b>\g<0></b>", shortdesc, flags=re.IGNORECASE)
+
     if not f.resolution:
         resolution = ""
     else:
@@ -151,10 +171,10 @@ for issue in sorted(issues, key=lambda i: i.score, reverse=True):
 <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
 <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
-<span class="summary">{f.summary}</span>
+<span class="summary">{summary}</span>
 <br>
 <div class="subbox">
-<span class="status">{f.status.name}</span> &nbsp;
+<span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
 <span class="resolution">{resolution}</span>
 <br>
 <span class="description">{shortdesc}</span></li>
