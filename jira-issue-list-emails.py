@@ -35,11 +35,12 @@ for idx,prio in enumerate(priorities):
 
 # scoring of STRINGS
 string_scorepatterns = {  # remember, several entry lines can match and will get added
-    r'(vuln|attack|hack)': 7,
-    r'(crash|\bhang|freeze)': 7,
-    r'(fail|overflow|stops? work|break|broke)': 3,
-    r'(bug|overflow|exception|watchdog|lock[ed ]*down)': 5,
-    r'(emergenc)': 10
+    r'(vuln[erableity]*|attack|hack[sed]*)': 7,
+    r'(crash|\bhang[ings]*|freezes?|frozen?)': 7,
+    r"(fail[ingureds]*|overflow|stops? work|does['not ]*work[sing]*|not work[sing]*|breaks?|broken?|erron[eou]?sl[ey]*)": 3,
+    r'(bug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down)': 5,
+    r'(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*)': 1,
+    r'(emergenc[yies]*)': 10
 }
 
 # scoring of LABELS
@@ -63,7 +64,7 @@ def scorestring(string, patterns = None):
 
 for issue in issues:
     f = issue.fields
-    score = len(f.issuelinks) + f.watches.watchCount + f.votes.votes
+    score = len(f.issuelinks) + f.watches.watchCount + ( f.votes.votes * 2 )
     score += scorestring(f.summary)
     score += scorestring(f.description)
     score += prioscores[f.priority.id]
@@ -90,13 +91,14 @@ def out(str):
     str = escape(str)
     outs.append(str)    # instead of raw append on string = expensiiiive
 
-out(Markup(f"""<!DOCTYPE html>
+out(Markup("""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <base href="{options['server']}" target="_blank">
+    <base href="{server}" target="_blank">
     <style type="text/css">
-"""))
+""").format(server=options['server'], **locals()))
+# separate non-formatted section for CSS because lots of { }
 out(Markup("""
     li { padding: 10px; }
     body {
@@ -141,13 +143,21 @@ out(Markup("""
         padding-left: 8em;
         padding-top: 2px;
     }
+    .score {
+        padding-left: 2em;
+        color: #ddd;
+        font-size: 8px;
+    }
 
     """))
-out(Markup(f"""
+out(Markup("""
     </style>
 </head>
 <body>
 """))
+
+
+# Group issues per status/resolution
 
 groups = {
     # (sort,groupname) = list of issues
@@ -175,37 +185,43 @@ for issue in issues:
     groups[group].append(issue)
 
 
-for groupkey,issues in sorted(groups.items()):
-    (sort,group) = groupkey
-    print(sort, groupkey, len(issues))
+# Loop the groups&issues and generate HTML!
 
-    out(Markup(f"""
-<h2>{group}</h2>
+for groupidx,issues in sorted(groups.items()):
+    (sort,groupname) = groupidx
+    print(sort, groupname, len(issues))
+
+    out(Markup("""
+<h2>{groupname}</h2>
 <ul>
-"""))
+""").format(**locals()))
 
     for issue in sorted(issues, key=lambda i: i.score, reverse=True):
         f = issue.fields
-        shortdesc = f.description[0:200].strip()
+        shortdesc = f.description.strip()
         shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
-        shortdesc = Markup("<br>").join(shortdesc.split("\n")[0:3])
-        shortdesc += "..."
-        summary = escape(f.summary)
+        shortdesc = shortdesc[0:200]
+        shortdesc = str(escape(shortdesc))   # str to not trigger escaping in re.sub()
+        summary = str(escape(f.summary))     # str to not trigger escaping in re.sub()
         for pattern,score in string_scorepatterns.items():
             if score>0:
-                summary = re.sub(pattern, r"<b>\g<0></b>", summary, flags=re.IGNORECASE)
-                shortdesc = re.sub(pattern, r"<b>\g<0></b>", shortdesc, flags=re.IGNORECASE)
+                summary = re.sub(pattern, r"<b>\g<0></b>", str(summary), flags=re.IGNORECASE)
+                shortdesc = re.sub(pattern, r"<b>\g<0></b>", str(shortdesc), flags=re.IGNORECASE)
+
+        summary = Markup(summary)
+        shortdesc = Markup(shortdesc).split("\n")[0:3]
+        shortdesc = Markup("<br>").join( shortdesc ) + "..."
 
         if not f.resolution:
             resolution = ""
         else:
             resolution = f"Resolution: {f.resolution.name}"
-        out(Markup(f"""
+        out(Markup("""
 <li>
 <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
 <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
-<span class="summary">{summary}</span>
+<span class="summary">{summary}</span><span class="score">{issue.score}</span>
 <br>
 <div class="subbox">
 <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
@@ -213,13 +229,15 @@ for groupkey,issues in sorted(groups.items()):
 <br>
 <span class="description">{shortdesc}</span></li>
 </div>
-"""))
+""").format(**locals()))
 
-    out(Markup(f"""
+    # End of group
+    out(Markup("""
 </ul>
 """))
 
-out(Markup(f"""
+# All issues listed
+out(Markup("""
 </body>
 </html>
 """))
