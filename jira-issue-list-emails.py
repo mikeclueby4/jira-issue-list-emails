@@ -128,11 +128,20 @@ out(Markup("""
     .description-fader {
         content:'';
         width: 100%;
-        height: 2rem;
+        height: 1.2rem;
         position: absolute;
         left:0;
         bottom: 0;
         background:linear-gradient(#ffffff60 0%, #ffffffff 100%);
+    }
+    .label {
+        font-size: 12px;
+        display: inline-block;
+        border: 1px solid #ccc;
+        background-color: #f5f5f5;
+        color: #555;
+        padding: 1px 5px;
+        border-radius: 3px;
     }
     .status {
         border-radius: 3px;
@@ -173,7 +182,10 @@ out(Markup("""
         color: #ddd;
         font-size: 8px;
     }
-
+    pre {
+        font-size: 10px;
+        font-family: lucida console, courier;
+    }
     """))
 out(Markup("""
     </style>
@@ -236,6 +248,7 @@ for groupidx,issues in sorted(groups.items()):
         summary = Markup(summary)
         # shortdesc = Markup(shortdesc).split("\n")[0:3]
         # shortdesc = Markup("<br>").join( shortdesc ) + "..."
+        shortdesc = re.sub(r"{noformat} *\n+(.*?)\n{noformat} *\n?", r"<pre>\g<1></pre>", shortdesc, flags=re.DOTALL)
         shortdesc = Markup( shortdesc.replace("\n", Markup("<br>")) )
 
         if not f.resolution:
@@ -243,24 +256,32 @@ for groupidx,issues in sorted(groups.items()):
         else:
             resolution = f"Resolution: {f.resolution.name}"
         out(Markup("""
-<li>
-<img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
-<a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
-<img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
-<span class="summary">{summary}</span><span class="score">{issue.score}</span>
-<br>
-<div class="subbox" style="position: relative;"> <!-- silly position:relative has to be there for the fader to work -->
-<span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
-<span class="resolution">{resolution}</span>
-<br>
-<input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
-<label for="description-toggle-{issue.id}" class="description">
-{shortdesc}<div class="description-fader"></div></label>
+            <li>
+            <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
+            <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
+            <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
+            <span class="summary">{summary}</span><span class="score">{issue.score}</span>
+            <br>
+            <div class="subbox" style="position: relative;"> <!-- silly position:relative has to be there for the fader to work -->
+            <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
+            <span class="resolution">{resolution}</span>
+            &nbsp; """).format(**locals()))
 
-</div>
+        for label in f.labels:
+            out(Markup("""
+            <span class="label">{label}</span>
+            """).format(**locals()))
 
-</li>
-""").format(**locals()))
+        out(Markup("""
+            <br>
+            <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
+            <label for="description-toggle-{issue.id}" class="description">
+            {shortdesc}<div class="description-fader"></div></label>
+
+            </div>
+
+            </li>
+            """).format(**locals()))
 
     # End of group
     out(Markup("""
