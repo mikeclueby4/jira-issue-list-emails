@@ -1,4 +1,5 @@
 from markupsafe import Markup, escape
+import re
 
 
 #
@@ -77,7 +78,6 @@ def make_outputter(outputter = None, finalizer = None):
     return myoutputter, myfinalizer
 
 
-import re
 def isearch(pattern, string):
     '''Shorthand case-independent re.search'''
     return re.search(pattern, string, re.IGNORECASE)
@@ -87,7 +87,7 @@ def scorestring(string, patterns):
     '''Iterate over a dict of regex:scoreadjust and return sum of those that match the input string'''
     ret = 0
     for pattern,score in patterns.items():
-        if re.search(pattern, string, re.IGNORECASE):
+        if re.search(pattern, string, flags=re.IGNORECASE):
             ret += score
     return ret
 
@@ -127,24 +127,26 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             font-size: smaller;
             padding-top: 4px;
             display: inline-block;
+        }
+        .collapsibledescription {
             /* collapsible stuff that integrates with toggle and label */
-            max-height: 3rem;
+            max-height: 2.1rem;
             overflow: hidden;
             transition: max-height .25s ease-in-out;
         }
         .description-toggle {
             display: none;
         }
-        .description-toggle:checked + .description {
+        .description-toggle:checked + .collapsibledescription {
             max-height: 100em;
         }
-        .description-toggle:checked + .description > .description-fader {
+        .description-toggle:checked + .collapsibledescription > .description-fader {
             display: none;
         }
         .description-fader {
             content:'';
             width: 100%;
-            height: 1.2rem;
+            height: 1rem;
             position: absolute;
             left:0;
             bottom: 0;
@@ -294,9 +296,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
                     shortdesc = re.sub(pattern, r"<b>\g<0></b>", str(shortdesc), flags=re.IGNORECASE)
 
             summary = Markup(summary)
-            # shortdesc = Markup(shortdesc).split("\n")[0:3]
-            # shortdesc = Markup("<br>").join( shortdesc ) + "..."
-            shortdesc = re.sub(r"({noformat}|{code[^}]+}) *\n*(.*?)\n *({noformat}|{code}) *\n?", r"<pre>\g<2></pre>", shortdesc, flags=re.DOTALL)
+            shortdesc = re.sub(r"({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?", r"<pre>\g<2></pre>", shortdesc, flags=re.DOTALL)
             shortdesc = Markup( shortdesc.replace("\n", Markup("<br>")) )
 
             if not f.resolution:
@@ -320,16 +320,24 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
                 <span class="label">{label}</span>
                 """).format(**locals()))
 
+            if shortdesc.count("<br>")>=2:
+                out(Markup("""
+                    <br>
+                    <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
+                    <label for="description-toggle-{issue.id}" class="description collapsibledescription">
+                    {shortdesc}<div class="description-fader"></div></label>
+                    """).format(**locals()))
+            else:
+                out(Markup("""
+                    <br>
+                    <div class="description">
+                    {shortdesc}</div>
+                    """).format(**locals()))
+
             out(Markup("""
-                <br>
-                <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
-                <label for="description-toggle-{issue.id}" class="description">
-                {shortdesc}<div class="description-fader"></div></label>
-
                 </div>
-
                 </li>
-                """).format(**locals()))
+            """))
 
         # End of group
         out(Markup("""
