@@ -4,6 +4,7 @@ import jira_issues_to_html
 import re
 
 
+# https://jira.readthedocs.io/en/master/examples.html#initialization
 options = {
     "server": "http://jira.clavister.com",
     "basic_auth": ("readonly", "NotSecret"),
@@ -32,18 +33,18 @@ for idx,prio in enumerate(priorities):
 # scoring of STRINGS
 jira_issues_to_html.string_scorepatterns = {  # remember, several entry lines can match and will get added
     r'(vuln[erableity]*|attack|hack[sed]*)': 7,
-    r'(crash|\bhang[ings]*|freezes?|frozen?)': 7,
+    r'(crash|\bhang[ings]*|freezes?|frozen?|\bdos\b)': 7,
     r"(fail[ingureds]*|overflow|stops? work|does['not ]*work[sing]*|not work[sing]*|breaks?|broken?|erron[eou]?sl[ey]*)": 3,
     r'(bug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down)': 5,
-    r'(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*)': 1,
-    r'(emergenc[yies]*)': 10
+    r'(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|break|broke|not[- ]([a-z]+[- ])?useful|weird|problem)': 2,
+    r'(emergenc[yies]*|critical)': 10
 }
 
 # scoring of LABELS
 jira_issues_to_html.label_scorepatterns = {  # remember, several entry lines can match and will get added
     r'support_need': 5,
     r'^support': 5,
-    r'emergenc': 10
+    r'(emergenc[yies]*|critical)': 10
 }
 
 # additional customized scoring
@@ -69,7 +70,7 @@ def mycustomgroup(issue):
 issues = jiraconnection.search_issues("project = COP AND created >= -7d", maxResults=1000)
 
 html = jira_issues_to_html.getheader(basehref = options['server'])
-html += jira_issues_to_html.render(issues)
+html += jira_issues_to_html.render(jiraconnection, issues)
 html += jira_issues_to_html.getfooter()
 
 

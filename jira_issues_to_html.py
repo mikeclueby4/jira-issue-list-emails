@@ -118,10 +118,21 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
 
     # separate non-formatted section for CSS because lots of { }
     out(Markup("""
-        li {  }
+        li {
+
+        }
         body {
             font-family: BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
             font-size: 14px;
+            color: #555;
+        }
+        b {
+            font-weight: 550;
+            color: #111;
+        }
+        .groupheader {
+            font-weight: 500;
+            letter-spacing: -1px;
         }
         .description {
             font-size: smaller;
@@ -187,7 +198,7 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
         }
         .resolution {
             font-size: 11px;
-            font-weight: bold;
+            font-weight: 600;
         }
         .subbox {
             display: inline-block;
@@ -222,7 +233,7 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
 # Important note on .format(**locals()) throughout: f-strings don't work with markupsafe, escaping doesn't happen!
 #
 
-def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
+def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, finalizer = None):
     '''Render given list of issues into HTML.
 
     For outputter/finalizer, see make_outputter()
@@ -279,7 +290,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
         print(f"   {sort} {groupname} - {len(issues)} issues")
 
         out(Markup("""
-    <{groupheadertag}>{groupname}</{groupheadertag}>
+    <{groupheadertag} class="groupheader">{groupname}</{groupheadertag}>
     <ul>
     """).format(**locals()))
 
