@@ -296,7 +296,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
             summary = Markup(summary)
             # shortdesc = Markup(shortdesc).split("\n")[0:3]
             # shortdesc = Markup("<br>").join( shortdesc ) + "..."
-            shortdesc = re.sub(r"{noformat} *\n+(.*?)\n{noformat} *\n?", r"<pre>\g<1></pre>", shortdesc, flags=re.DOTALL)
+            shortdesc = re.sub(r"({noformat}|{code[^}]+}) *\n*(.*?)\n *({noformat}|{code}) *\n?", r"<pre>\g<2></pre>", shortdesc, flags=re.DOTALL)
             shortdesc = Markup( shortdesc.replace("\n", Markup("<br>")) )
 
             if not f.resolution:

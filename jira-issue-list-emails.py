@@ -1,5 +1,5 @@
 
-from jira import JIRA
+from jira import JIRA        # pip install jira
 import jira_issues_to_html
 import re
 
