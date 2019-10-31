@@ -172,6 +172,9 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             padding: 1px 5px;
             border-radius: 3px;
         }
+        .numcomments {
+            font-size: 11px;
+        }
         .status {
             border-radius: 3px;
             border: 1px solid;
@@ -245,8 +248,10 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
     #
 
     for issue in issues:
+        issue.numcomments = len(jiraconnection.comments(issue.key))
         f = issue.fields
         score = len(f.issuelinks) + f.watches.watchCount + ( f.votes.votes * 2 )
+        score += issue.numcomments
         score += scorestring(f.summary, string_scorepatterns)
         score += scorestring(f.description, string_scorepatterns)
         score += prioscores[f.priority.id]
@@ -323,8 +328,13 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                 <br>
                 <div class="subbox" style="position: relative;"> <!-- silly position:relative has to be there for the fader to work -->
                 <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
-                <span class="resolution">{resolution}</span>
-                &nbsp; """).format(**locals()))
+                <span class="resolution">{resolution}</span> &nbsp;
+                """).format(**locals()))
+
+            if issue.numcomments>0:
+                out(Markup("""
+                <span class="numcomments">{issue.numcomments} comments</span> &nbsp;
+                """).format(**locals()))
 
             for label in f.labels:
                 out(Markup("""
