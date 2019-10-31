@@ -1,6 +1,6 @@
 
 from jira import JIRA
-import urllib3
+import jira_issues_to_html
 import re
 
 
@@ -11,34 +11,26 @@ options = {
     "timeout": 10
 }
 
-jira = JIRA(**options)
 
-
-issues = jira.search_issues("project = COP AND created >= -7d", maxResults=1000)
-
-
-#
-# utils
-#
-
-import re
-def isearch(pattern, string):
-    return re.search(pattern, string, re.IGNORECASE)
+jiraconnection = JIRA(**options)
 
 
 #
 # scoring functions and patterns
 #
 
-
 # scoring of PRIORITIES
-prioscores = {}  # [id] = score
-priorities = jira.priorities()
+jira_issues_to_html.prioscores = {}  # [id] = score
+priorities = jiraconnection.priorities()
+print("")
+print("Scoring adjust for Priorities:")
 for idx,prio in enumerate(priorities):
-    prioscores[prio.id] = ( len(priorities) - 1 - idx ) * 5     # 0, 5, 10, ...
+    score = ( len(priorities) - 1 - idx ) * 5     # 0, 5, 10, ...
+    jira_issues_to_html.prioscores[prio.id] = score
+    print(f"    {prio.name} (id {prio.id}) = +{score}")
 
 # scoring of STRINGS
-string_scorepatterns = {  # remember, several entry lines can match and will get added
+jira_issues_to_html.string_scorepatterns = {  # remember, several entry lines can match and will get added
     r'(vuln[erableity]*|attack|hack[sed]*)': 7,
     r'(crash|\bhang[ings]*|freezes?|frozen?)': 7,
     r"(fail[ingureds]*|overflow|stops? work|does['not ]*work[sing]*|not work[sing]*|breaks?|broken?|erron[eou]?sl[ey]*)": 3,
@@ -48,259 +40,46 @@ string_scorepatterns = {  # remember, several entry lines can match and will get
 }
 
 # scoring of LABELS
-label_scorepatterns = {  # remember, several entry lines can match and will get added
+jira_issues_to_html.label_scorepatterns = {  # remember, several entry lines can match and will get added
     r'support_need': 5,
     r'^support': 5,
     r'emergenc': 10
 }
 
-def scorestring(string, patterns = string_scorepatterns):
-    ret = 0
-    for pattern,score in patterns.items():
-        if re.search(pattern, string, re.IGNORECASE):
-            ret += score
-    return ret
-
-
-# Loop through and score the returned issues
-
-for issue in issues:
+# additional customized scoring
+def mycustomscore(issue, score):
     f = issue.fields
-    score = len(f.issuelinks) + f.watches.watchCount + ( f.votes.votes * 2 )
-    score += scorestring(f.summary)
-    score += scorestring(f.description)
-    score += prioscores[f.priority.id]
-    for label in f.labels:
-        score += scorestring(label, label_scorepatterns)
-    for link in f.issuelinks:
-        li = getattr(link, "inwardIssue", None) or getattr(link, "outwardIssue", None)
-        score += scorestring(li.fields.issuetype.name)
-        score += scorestring(li.fields.summary)
-
     if f.resolution and f.resolution.name.lower() in ["duplicate", "rejected", "invalid"]:
         score = -1
+    return score
+jira_issues_to_html.customscore = mycustomscore
 
-    setattr(issue, "score", score)
+# custom issue grouping, see jira_issues_to_html.py for example
+def mycustomgroup(issue):
+     return 0, "Group heading text"
+# uncomment to use: jira_issues_to_html.customgroup = mycustomgroup
+
+
+
 
 #
-# Build HTML!
+# Query and build HTML!
 #
 
-from markupsafe import Markup, escape
+issues = jiraconnection.search_issues("project = COP AND created >= -7d", maxResults=1000)
 
-outs = []
-def out(str):
-    str = escape(str)
-    outs.append(str)    # instead of raw append on string = expensiiiive
-
-out(Markup("""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <base href="{server}" target="_blank">
-    <style type="text/css">
-""").format(server=options['server'], **locals()))
-# separate non-formatted section for CSS because lots of { }
-out(Markup("""
-    li {  }
-    body {
-        font-family: BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
-        font-size: 14px;
-    }
-    .description {
-        font-size: smaller;
-        padding-top: 4px;
-        display: inline-block;
-        /* collapsible stuff that integrates with toggle and label */
-        max-height: 3rem;
-        overflow: hidden;
-        transition: max-height .25s ease-in-out;
-    }
-    .description-toggle {
-        display: none;
-    }
-    .description-toggle:checked + .description {
-        max-height: 100em;
-    }
-    .description-toggle:checked + .description > .description-fader {
-        display: none;
-    }
-    .description-fader {
-        content:'';
-        width: 100%;
-        height: 1.2rem;
-        position: absolute;
-        left:0;
-        bottom: 0;
-        background:linear-gradient(#ffffff60 0%, #ffffffff 100%);
-    }
-    .label {
-        font-size: 12px;
-        display: inline-block;
-        border: 1px solid #ccc;
-        background-color: #f5f5f5;
-        color: #555;
-        padding: 1px 5px;
-        border-radius: 3px;
-    }
-    .status {
-        border-radius: 3px;
-        border: 1px solid;
-        display: inline-block;
-        font-weight: bold;
-        padding: 2px 8px;
-        text-align: center;
-        text-transform: uppercase;
-        box-sizing: border-box;
-        font-size: 11px;
-        letter-spacing: 0;
-    }
-    .status-color-blue-gray {
-        border-color: #e4e8ed;
-        color: #4a6785;
-    }
-    .status-color-green {
-        color: #14892c;
-        border-color: #b2d8b9;
-    }
-    .status-color-yellow {
-        border-color: #ffe28c;
-        color: #594300;
-    }
-    .resolution {
-        font-size: 11px;
-        font-weight: bold;
-    }
-    .subbox {
-        display: inline-block;
-        padding-left: 10%;
-        padding-top: 2px;
-        margin-bottom: 1rem;
-    }
-    .score {
-        padding-left: 2em;
-        color: #ddd;
-        font-size: 8px;
-    }
-    pre {
-        font-size: 10px;
-        font-family: lucida console, courier;
-    }
-    """))
-out(Markup("""
-    </style>
-</head>
-<body>
-"""))
+html = jira_issues_to_html.getheader(basehref = options['server'])
+html += jira_issues_to_html.render(issues)
+html += jira_issues_to_html.getfooter()
 
 
-# Group issues per status/resolution
-
-groups = {
-    # (sort,groupname) = list of issues
-}
-for issue in issues:
-    f = issue.fields
-    if f.resolution:
-        if isearch(r"fixed", f.resolution.name):
-            group=(3,"Resolved: Fixed")
-        else:
-            group=(4,"Resolved: Other")
-
-    elif isearch(r"(need|wait)", f.status.name):
-        group (1,"Waiting for something")
-
-    elif f.status.statusCategory.key=='new' and not isearch(r"confirmed", f.status.name):
-        group=(0,"Unconfirmed / To Do / New")
-
-    else:
-        group=(2,"Confirmed / Progressing")
-
-    if not group in groups:
-        groups[group] = []
-
-    groups[group].append(issue)
-
-
-# Loop the groups&issues and generate HTML!
-
-for groupidx,issues in sorted(groups.items()):
-    (sort,groupname) = groupidx
-    print(sort, groupname, len(issues))
-
-    out(Markup("""
-<h2>{groupname}</h2>
-<ul>
-""").format(**locals()))
-
-    for issue in sorted(issues, key=lambda i: i.score, reverse=True):
-        f = issue.fields
-        shortdesc = f.description.strip()
-        shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
-        # shortdesc = shortdesc[0:200]
-        shortdesc = str(escape(shortdesc))   # str to not trigger escaping in re.sub()
-        summary = str(escape(f.summary))     # str to not trigger escaping in re.sub()
-        for pattern,score in string_scorepatterns.items():
-            if score>0:
-                summary = re.sub(pattern, r"<b>\g<0></b>", str(summary), flags=re.IGNORECASE)
-                shortdesc = re.sub(pattern, r"<b>\g<0></b>", str(shortdesc), flags=re.IGNORECASE)
-
-        summary = Markup(summary)
-        # shortdesc = Markup(shortdesc).split("\n")[0:3]
-        # shortdesc = Markup("<br>").join( shortdesc ) + "..."
-        shortdesc = re.sub(r"{noformat} *\n+(.*?)\n{noformat} *\n?", r"<pre>\g<1></pre>", shortdesc, flags=re.DOTALL)
-        shortdesc = Markup( shortdesc.replace("\n", Markup("<br>")) )
-
-        if not f.resolution:
-            resolution = ""
-        else:
-            resolution = f"Resolution: {f.resolution.name}"
-        out(Markup("""
-            <li>
-            <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
-            <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
-            <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
-            <span class="summary">{summary}</span><span class="score">{issue.score}</span>
-            <br>
-            <div class="subbox" style="position: relative;"> <!-- silly position:relative has to be there for the fader to work -->
-            <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
-            <span class="resolution">{resolution}</span>
-            &nbsp; """).format(**locals()))
-
-        for label in f.labels:
-            out(Markup("""
-            <span class="label">{label}</span>
-            """).format(**locals()))
-
-        out(Markup("""
-            <br>
-            <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
-            <label for="description-toggle-{issue.id}" class="description">
-            {shortdesc}<div class="description-fader"></div></label>
-
-            </div>
-
-            </li>
-            """).format(**locals()))
-
-    # End of group
-    out(Markup("""
-</ul>
-"""))
-
-# All issues listed
-out(Markup("""
-</body>
-</html>
-"""))
 
 
 
 
 
 f = open("output.html", "w")
-for str in outs:
-    f.write(str)
+f.write(html)
 f.close()
 
 
