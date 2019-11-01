@@ -211,10 +211,12 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             display: block;
             font-size: 10px;
             font-weight: 600;
+            margin-left: 10px;
         }
         .numcomments {
             display: block;
             font-size: 10px;
+            margin-left: 10px;
         }
         .subbox {
             padding: 2px;
