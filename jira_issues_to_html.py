@@ -64,14 +64,14 @@ def make_outputter(outputter = None, finalizer = None):
     # Both functions supplied? Use them.
     if outputter and finalizer:
         def outwrapper(str):
-            str = escape(str)
+            str = escape(str).replace("\xa0", Markup("&nbsp;"))
             outputter(str)
         return outwrapper, finalizer
 
     # Define our own spooler that deallocates itself when the function references go out of scope
     outs = []
     def myoutputter(str):
-        str = escape(str)
+        str = escape(str).replace("\xa0", Markup("&nbsp;"))
         outs.append(str)    # instead of raw append on string = expensiiiive
     def myfinalizer():
         return "".join(outs)
@@ -301,19 +301,18 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
 
         for issue in sorted(issues, key=lambda i: i.score, reverse=True):
             f = issue.fields
-            shortdesc = f.description.strip()
-            shortdesc = re.sub(r"(\r?\n)+", "\n", shortdesc)
-            # shortdesc = shortdesc[0:200]
-            shortdesc = str(escape(shortdesc))   # str to not trigger escaping in re.sub()
+            description = f.description.strip()
+            description = re.sub(r"(\r?\n)+", "\n", description)
+            description = str(escape(description))   # str to not trigger escaping in re.sub()
             summary = str(escape(f.summary))     # str to not trigger escaping in re.sub()
             for pattern,score in string_scorepatterns.items():
                 if score>0:
-                    summary = re.sub(pattern, r"<b>\g<0></b>", str(summary), flags=re.IGNORECASE)
-                    shortdesc = re.sub(pattern, r"<b>\g<0></b>", str(shortdesc), flags=re.IGNORECASE)
+                    summary = re.sub(pattern, r"<b>\g<0></b>", summary, flags=re.IGNORECASE)
+                    description = re.sub(pattern, r"<b>\g<0></b>", description, flags=re.IGNORECASE)
 
             summary = Markup(summary)
-            shortdesc = re.sub(r"({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?", r"<pre>\g<2></pre>", shortdesc, flags=re.DOTALL)
-            shortdesc = Markup( shortdesc.replace("\n", Markup("<br>")) )
+            description = re.sub(r"({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?", r"<pre>\g<2></pre>", description, flags=re.DOTALL)
+            description = Markup( description.replace("\n", Markup("<br>")) )
 
             if not f.resolution:
                 resolution = ""
@@ -341,18 +340,18 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                 <span class="label">{label}</span>
                 """).format(**locals()))
 
-            if shortdesc.count("<br>")>=2:
+            if description.count("<br>")>=2:
                 out(Markup("""
                     <br>
                     <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
                     <label for="description-toggle-{issue.id}" class="description collapsibledescription">
-                    {shortdesc}<div class="description-fader"></div></label>
+                    {description}<div class="description-fader"></div></label>
                     """).format(**locals()))
             else:
                 out(Markup("""
                     <br>
                     <div class="description">
-                    {shortdesc}</div>
+                    {description}</div>
                     """).format(**locals()))
 
             out(Markup("""
