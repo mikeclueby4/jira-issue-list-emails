@@ -119,7 +119,9 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
     # separate non-formatted section for CSS because lots of { }
     out(Markup("""
         li {
-
+            list-style: none;
+            display: block;
+            margin-bottom: 3px;
         }
         body {
             font-family: BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
@@ -130,13 +132,18 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             font-weight: 550;
             color: #111;
         }
+        pre {
+            margin: 0;
+            font-size: 10px;
+            font-family: lucida console, courier;
+            white-space: pre-wrap;
+        }
         .groupheader {
             font-weight: 500;
             letter-spacing: -1px;
         }
         .description {
             font-size: smaller;
-            padding-top: 4px;
             display: inline-block;
         }
         .collapsibledescription {
@@ -157,7 +164,7 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
         .description-fader {
             content:'';
             width: 100%;
-            height: 1rem;
+            height: 50%;
             position: absolute;
             left:0;
             bottom: 0;
@@ -172,9 +179,6 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             padding: 1px 5px;
             border-radius: 3px;
         }
-        .numcomments {
-            font-size: 11px;
-        }
         .status {
             border-radius: 3px;
             border: 1px solid;
@@ -186,6 +190,10 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             box-sizing: border-box;
             font-size: 11px;
             letter-spacing: 0;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            max-width: 10em;
         }
         .status-color-blue-gray {
             border-color: #e4e8ed;
@@ -200,23 +208,33 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             color: #594300;
         }
         .resolution {
-            font-size: 11px;
+            display: block;
+            font-size: 10px;
             font-weight: 600;
         }
+        .numcomments {
+            display: block;
+            font-size: 10px;
+        }
         .subbox {
-            display: inline-block;
-            padding-left: 10%;
-            padding-top: 2px;
-            margin-bottom: 1rem;
+            padding: 2px;
+        }
+        .subbox-left {
+            min-width: 9em;
+            padding-right: 1em;
+            line-height: 11px;
+        }
+        .subbox-middle {
+            border-left: 1px #ddd solid;
+            padding-right: 0.5em;
+        }
+        .subbox-right {
+            position: relative;  /* IMPORTANT: for description-fader positioning to work */
         }
         .score {
             padding-left: 2em;
             color: #ddd;
             font-size: 8px;
-        }
-        pre {
-            font-size: 10px;
-            font-family: lucida console, courier;
         }
     """))
 
@@ -324,38 +342,45 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
                 <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
                 <span class="summary">{summary}</span><span class="score">{issue.score}</span>
-                <br>
-                <div class="subbox" style="position: relative;"> <!-- silly position:relative has to be there for the fader to work -->
-                <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span> &nbsp;
-                <span class="resolution">{resolution}</span> &nbsp;
                 """).format(**locals()))
-
-            if issue.numcomments>0:
-                out(Markup("""
-                <span class="numcomments">{issue.numcomments} comments</span> &nbsp;
-                """).format(**locals()))
-
             for label in f.labels:
                 out(Markup("""
                 <span class="label">{label}</span>
                 """).format(**locals()))
+            out(Markup("""
+                <br>
+                <table class="subbox"><tbody><tr valign=top>
+                <td class="subbox-left">
+                <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span>
+                <span class="resolution">{resolution}</span>
+                """).format(**locals()))
+
+            if issue.numcomments>0:
+                out(Markup("""
+                <span class="numcomments">{issue.numcomments}&nbsp;comments</span>
+                """).format(**locals()))
+
+            out(Markup("""
+                </td>
+                <td class="subbox-middle"></td>
+                <td class="subbox-right">
+            """))
 
             if description.count("<br>")>=2:
                 out(Markup("""
-                    <br>
                     <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
                     <label for="description-toggle-{issue.id}" class="description collapsibledescription">
                     {description}<div class="description-fader"></div></label>
                     """).format(**locals()))
             else:
                 out(Markup("""
-                    <br>
                     <div class="description">
                     {description}</div>
                     """).format(**locals()))
 
             out(Markup("""
-                </div>
+                </td>
+                </tr></tbody></table>
                 </li>
             """))
 
@@ -366,6 +391,12 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
 
     return finalizer()
 
+
+#
+# HTML page footer
+#
+# Important note on .format(**locals()) throughout: f-strings don't work with markupsafe, escaping doesn't happen!
+#
 
 def getfooter(outputter = None, finalizer = None):
     (out,finalizer) = make_outputter(outputter, finalizer)
