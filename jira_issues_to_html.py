@@ -24,11 +24,11 @@ prioscores = {
 }
 
 
-def customscore(issue, score):
+def customscore(score, issue):
     '''Any additional scoring adjustments/overrides needed
     Override this function to implement your own functionality!
     '''
-    return score
+    pass
 
 def customgroup(issue):
     '''Determine what group an issue should be listed under.
@@ -38,19 +38,49 @@ def customgroup(issue):
         sortkey: number,
         displayname: string
     '''
-    f = issue.fields
-    if f.resolution:
-        if isearch(r"fixed", f.resolution.name):
-            return 3,"Resolved: Fixed"
-        return  4,"Resolved: Other"
+    return (0, "Issues")
 
-    if isearch(r"(need|wait|on[-_ .]?hold)", f.status.name):
-        return 1,"Waiting for something"
+#
+# "Score" class
+#
+# Holds current score + log of what went into it
+#
 
-    if f.status.statusCategory.key=='new' and not isearch(r"confirmed", f.status.name):
-        return 0,"Unconfirmed / To Do / New"
+class Score:
+    def __init__(self,
+                score=0,    # type: int
+                text=None   # type: Optional[str]
+                ):
+        self.score = score
+        self.log = []
+        if text:
+            self.log += text
 
-    return 2,"Confirmed / Progressing"
+    def __iadd__(self,
+                adjust_and_text     # type: Tuple[int, str]
+                ):
+        (adjust,text) = adjust_and_text
+        if adjust!=0:
+            self.score += adjust
+            self.log.append(f"""{"+" if adjust>=0 else ""}{adjust}: {text}""")
+        return self
+
+    def set(self,
+            score,  # type: int
+            text    # type: str
+            ):
+        self.score = score
+        self.log.append(f"Force: {score}: {text}")
+
+    def patterns(self,  # type: Score
+            text,       # type: str
+            patterns,   # type: Dict[str,int]
+            prefix      # type: str
+            ):
+        '''Iterate over a dict of regex:scoreadjust and apply those that match text'''
+        for pattern,adjust in patterns.items():
+            if re.search(pattern, text, flags=re.IGNORECASE):
+                self += (adjust, prefix + pattern)
 
 
 #
@@ -83,13 +113,6 @@ def isearch(pattern, string):
     return re.search(pattern, string, re.IGNORECASE)
 
 
-def scorestring(string, patterns):
-    '''Iterate over a dict of regex:scoreadjust and return sum of those that match the input string'''
-    ret = 0
-    for pattern,score in patterns.items():
-        if re.search(pattern, string, flags=re.IGNORECASE):
-            ret += score
-    return ret
 
 
 
@@ -222,8 +245,8 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
             padding: 2px;
         }
         .subbox-left {
-            min-width: 9em;
-            padding-right: 1em;
+            min-width: 8.5em;
+            padding-right: 0.5em;
             line-height: 11px;
         }
         .subbox-middle {
@@ -232,11 +255,34 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
         }
         .subbox-right {
             position: relative;  /* IMPORTANT: for description-fader positioning to work */
+            max-width: 130em;
         }
         .score {
-            padding-left: 2em;
-            color: #ddd;
+            padding-left: 1em;
+            padding-right: 1em;
+            color: #ccc;
             font-size: 8px;
+        }
+        .tooltip {
+            position: relative;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            background-color: #eee;
+            color: #555;
+            padding: 5px;
+            width: max-content;
+            border-radius: 3px;
+            position: absolute;
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: pre-wrap;
+            font-size: 10px;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
     """))
 
@@ -270,19 +316,22 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
     for issue in issues:
         issue.numcomments = len(jiraconnection.comments(issue.key))
         f = issue.fields
-        score = len(f.issuelinks) + f.watches.watchCount + ( f.votes.votes * 2 )
-        score += issue.numcomments
-        score += scorestring(f.summary, string_scorepatterns)
-        score += scorestring(f.description, string_scorepatterns)
-        score += prioscores[f.priority.id]
+        score = Score()
+        score += (len(f.issuelinks), "Linked issues")
+        score += (f.watches.watchCount, "Watchers")
+        score += (f.votes.votes * 2, "2 x Votes")
+        score += (issue.numcomments, "Comments")
+        score.patterns(f.summary, string_scorepatterns, "Summary pattern ")
+        score.patterns(f.description, string_scorepatterns, "Description pattern ")
+        score += (prioscores[f.priority.id], "Priority " + f.priority.name)
         for label in f.labels:
-            score += scorestring(label, label_scorepatterns)
+            score.patterns(label, label_scorepatterns, "Label pattern ")
         for link in f.issuelinks:
             li = getattr(link, "inwardIssue", None) or getattr(link, "outwardIssue", None)
-            score += scorestring(li.fields.issuetype.name, string_scorepatterns)
-            score += scorestring(li.fields.summary, string_scorepatterns)
+            score.patterns(li.fields.issuetype.name, string_scorepatterns, f"Linked issue type '{li.fields.issuetype.name}' pattern ")
+            score.patterns(li.fields.summary, string_scorepatterns, f"Linked issue summary '{li.fields.summary}' pattern ")
 
-        score = customscore(issue, score)
+        customscore(score, issue)
 
         setattr(issue, "score", score)
 
@@ -319,7 +368,7 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
     <ul>
     """).format(**locals()))
 
-        for issue in sorted(issues, key=lambda i: i.score, reverse=True):
+        for issue in sorted(issues, key=lambda i: i.score.score, reverse=True):
             f = issue.fields
             description = f.description.strip()
             description = re.sub(r"(\r?\n)+", "\n", description)
@@ -338,12 +387,14 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                 resolution = ""
             else:
                 resolution = f"Resolution: {f.resolution.name}"
+            scoretooltip = "\n".join(issue.score.log)
             out(Markup("""
                 <li>
                 <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
                 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
                 <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
-                <span class="summary">{summary}</span><span class="score">{issue.score}</span>
+                <span class="summary">{summary}</span>
+                <span class="score tooltip">{issue.score.score}<span class="tooltiptext">{scoretooltip}</span></span>
                 """).format(**locals()))
             for label in f.labels:
                 out(Markup("""

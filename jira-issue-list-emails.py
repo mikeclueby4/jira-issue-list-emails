@@ -1,7 +1,7 @@
 
 from jira import JIRA        # pip install jira
+from myutils import *
 import jira_issues_to_html
-import re
 
 
 # https://jira.readthedocs.io/en/master/examples.html#initialization
@@ -26,39 +26,53 @@ priorities = jiraconnection.priorities()
 print("")
 print("Scoring adjust for Priorities:")
 for idx,prio in enumerate(priorities):
-    score = ( len(priorities) - 1 - idx ) * 5     # 0, 5, 10, ...
+    score = ( len(priorities) - 1 - idx ) * 10     # 0, 10, 20, ...
+    if isearch("emergenc", prio.name):
+        score += 30
     jira_issues_to_html.prioscores[prio.id] = score
     print(f"    {prio.name} (id {prio.id}) = +{score}")
 
 # scoring of STRINGS
 jira_issues_to_html.string_scorepatterns = {  # remember, several entry lines can match and will get added
-    r'(vuln[erableity]*|attack|hack[sed]*)': 7,
-    r'(crash|\bhang[ings]*|freezes?|frozen?|\bdos\b)': 7,
-    r"(fail[ingureds]*|overflow|stops? work|does['not ]*work[sing]*|not work[sing]*|breaks?|broken?|erron[eou]?sl[ey]*)": 3,
-    r'(bug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down)': 5,
-    r'(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|break|broke|not[- ]([a-z]+[- ])?useful|weird|problem)': 2,
-    r'(emergenc[yies]*|critical)': 10
+    r"(emergenc[yies]*|critical|catastroph)": 10,
+    r"(vuln[erableity]*|attack|hack[sed]*|\bd?dos(:d|'d|ed|ing)?\b)": 7,
+    r"(crash|\bhang[ings]*|freezes?|frozen?|interrupt)": 7,
+    r"(danger[ous]*|severe)": 5,   # not 'severely', it's too common in that form
+    r"(bug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down)": 5,
+    r"(fail[ingureds]*|does[' ]no?t work|(won't|not|stops?|stopped) work[sing]*|breaks?|broken?|erron[eou]+s[ley]*|incorrect[ley]*)": 3,
+    r"(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|not[- ]([a-z]+[- ])?useful|weird|strange|problem|should[' ]no?t)": 2,
 }
 
 # scoring of LABELS
 jira_issues_to_html.label_scorepatterns = {  # remember, several entry lines can match and will get added
     r'support_need': 5,
     r'^support': 5,
-    r'(emergenc[yies]*|critical)': 10
+    r'(emergenc[yies]*|critical|vuln)': 10
 }
 
 # additional customized scoring
-def mycustomscore(issue, score):
+def mycustomscore(score, issue):
     f = issue.fields
     if f.resolution and f.resolution.name.lower() in ["duplicate", "rejected", "invalid"]:
-        score = -1
-    return score
+        score.set(-1, "Duplicate/Rejected/Invalid")
 jira_issues_to_html.customscore = mycustomscore
 
-# custom issue grouping, see jira_issues_to_html.py for example
+# custom issue grouping
 def mycustomgroup(issue):
-     return 0, "Group heading text"
-# uncomment to use: jira_issues_to_html.customgroup = mycustomgroup
+    f = issue.fields
+    if f.resolution:
+        if isearch(r"fixed", f.resolution.name):
+            return 3,"Resolved: Fixed"
+        return  4,"Resolved: Other"
+
+    if isearch(r"(need|wait|on[-_ .]?hold)", f.status.name):
+        return 1,"Waiting for something"
+
+    if f.status.statusCategory.key=='new' and not isearch(r"(confirmed|accepted)", f.status.name):
+        return 0,"Unconfirmed / To Do / New"
+
+    return 2,"Confirmed / Progressing"
+jira_issues_to_html.customgroup = mycustomgroup
 
 
 
@@ -67,7 +81,7 @@ def mycustomgroup(issue):
 # Query and build HTML!
 #
 
-issues = jiraconnection.search_issues("project = COP AND created >= -7d", maxResults=1000)
+issues = jiraconnection.search_issues("project = COP AND created >= -20d", maxResults=1000)
 
 html = jira_issues_to_html.getheader(basehref = options['server'])
 html += jira_issues_to_html.render(jiraconnection, issues)
@@ -79,7 +93,7 @@ html += jira_issues_to_html.getfooter()
 
 
 
-f = open("output.html", "w")
+f = open("output.html", "w", encoding="utf-8")
 f.write(html)
 f.close()
 
