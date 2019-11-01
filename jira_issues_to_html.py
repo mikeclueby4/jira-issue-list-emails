@@ -121,7 +121,7 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
         li {
             list-style: none;
             display: block;
-            margin-bottom: 3px;
+            margin-bottom: 5px;
         }
         body {
             font-family: BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
