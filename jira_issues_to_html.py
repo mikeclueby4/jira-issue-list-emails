@@ -1,4 +1,5 @@
 from markupsafe import Markup, escape
+from myutils import *
 import re
 
 
@@ -108,9 +109,6 @@ def make_outputter(outputter = None, finalizer = None):
     return myoutputter, myfinalizer
 
 
-def isearch(pattern, string):
-    '''Shorthand case-independent re.search'''
-    return re.search(pattern, string, re.IGNORECASE)
 
 
 

@@ -37,10 +37,10 @@ jira_issues_to_html.string_scorepatterns = {  # remember, several entry lines ca
     r"(emergenc[yies]*|critical|catastroph)": 10,
     r"(vuln[erableity]*|attack|hack[sed]*|\bd?dos(:d|'d|ed|ing)?\b)": 7,
     r"(crash|\bhang[ings]*|freezes?|frozen?|interrupt)": 7,
-    r"(danger[ous]*|severe)": 5,   # not 'severely', it's too common in that form
-    r"(bug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down)": 5,
+    r"(danger[ous]*|severe|unsafe)": 5,   # not 'severely', it's too common in that form
+    r"(bug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down|lock[seding]* (me |you | us )?out)": 5,
     r"(fail[ingureds]*|does[' ]no?t work|(won't|not|stops?|stopped) work[sing]*|breaks?|broken?|erron[eou]+s[ley]*|incorrect[ley]*)": 3,
-    r"(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|not[- ]([a-z]+[- ])?useful|weird|strange|problem|should[' ]no?t)": 2,
+    r"(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|not[- ]([a-z]+[- ])?useful|weird|strange|problem|should[' ]no?t|can't|cannot)": 2,
 }
 
 # scoring of LABELS
