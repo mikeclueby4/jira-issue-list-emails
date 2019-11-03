@@ -137,152 +137,8 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
     <style type="text/css">
 """).format(**locals()))
 
-    # separate non-formatted section for CSS because lots of { }
-    out(Markup("""
-        li {
-            list-style: none;
-            display: block;
-            margin-bottom: 5px;
-        }
-        body {
-            font-family: BlinkMacSystemFont,"Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
-            font-size: 14px;
-            color: #555;
-        }
-        b {
-            font-weight: 550;
-            color: #111;
-        }
-        pre {
-            margin: 0;
-            font-size: 10px;
-            font-family: lucida console, courier;
-            white-space: pre-wrap;
-        }
-        .groupheader {
-            font-weight: 500;
-            letter-spacing: -1px;
-        }
-        .description {
-            font-size: smaller;
-            display: inline-block;
-        }
-        .collapsibledescription {
-            /* collapsible stuff that integrates with toggle and label */
-            max-height: 2.1rem;
-            overflow: hidden;
-            transition: max-height .25s ease-in-out;
-        }
-        .description-toggle {
-            display: none;
-        }
-        .description-toggle:checked + .collapsibledescription {
-            max-height: 100em;
-        }
-        .description-toggle:checked + .collapsibledescription > .description-fader {
-            display: none;
-        }
-        .description-fader {
-            content:'';
-            width: 100%;
-            height: 50%;
-            position: absolute;
-            left:0;
-            bottom: 0;
-            background:linear-gradient(#ffffff60 0%, #ffffffff 100%);
-        }
-        .label {
-            font-size: 12px;
-            display: inline-block;
-            border: 1px solid #ccc;
-            background-color: #f5f5f5;
-            color: #555;
-            padding: 1px 5px;
-            border-radius: 3px;
-        }
-        .status {
-            border-radius: 3px;
-            border: 1px solid;
-            display: inline-block;
-            font-weight: bold;
-            padding: 2px 8px;
-            text-align: center;
-            text-transform: uppercase;
-            box-sizing: border-box;
-            font-size: 11px;
-            letter-spacing: 0;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            overflow: hidden;
-            max-width: 10em;
-        }
-        .status-color-blue-gray {
-            border-color: #e4e8ed;
-            color: #4a6785;
-        }
-        .status-color-green {
-            color: #14892c;
-            border-color: #b2d8b9;
-        }
-        .status-color-yellow {
-            border-color: #ffe28c;
-            color: #594300;
-        }
-        .resolution {
-            display: block;
-            font-size: 10px;
-            font-weight: 600;
-            margin-left: 10px;
-        }
-        .numcomments {
-            display: block;
-            font-size: 10px;
-            margin-left: 10px;
-        }
-        .subbox {
-            padding: 2px;
-        }
-        .subbox-left {
-            min-width: 8.5em;
-            padding-right: 0.5em;
-            line-height: 11px;
-        }
-        .subbox-middle {
-            border-left: 1px #ddd solid;
-            padding-right: 0.5em;
-        }
-        .subbox-right {
-            position: relative;  /* IMPORTANT: for description-fader positioning to work */
-            max-width: 130em;
-        }
-        .score {
-            padding-left: 1em;
-            padding-right: 1em;
-            color: #ccc;
-            font-size: 8px;
-        }
-        .tooltip {
-            position: relative;
-        }
-        .tooltip .tooltiptext {
-            visibility: hidden;
-            background-color: #eee;
-            color: #555;
-            padding: 5px;
-            width: max-content;
-            border-radius: 3px;
-            position: absolute;
-            z-index: 1;
-            opacity: 0;
-            transition: opacity 0.3s;
-            white-space: pre-wrap;
-            font-size: 10px;
-        }
-        .tooltip:hover .tooltiptext {
-            visibility: visible;
-            opacity: 1;
-        }
-    """))
+    with open("stylesheet.css", "r") as cssfile:
+        out(Markup(cssfile.read()))
 
     out(Markup("""
     </style>
@@ -370,6 +226,7 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
             f = issue.fields
             description = f.description.strip()
             description = re.sub(r"(\r?\n)+", "\n", description)
+            description = re.sub(r"\x1B\x5B[\x21-\x3F]*?[\x40-\x7E]", "", description)  # strip common ansi escape sequences
             description = str(escape(description))   # str to not trigger escaping in re.sub()
             summary = str(escape(f.summary))     # str to not trigger escaping in re.sub()
             for pattern,score in string_scorepatterns.items():
@@ -378,7 +235,7 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                     description = re.sub(pattern, r"<b>\g<0></b>", description, flags=re.IGNORECASE)
 
             summary = Markup(summary)
-            description = re.sub(r"({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?", r"<pre>\g<2></pre>", description, flags=re.DOTALL)
+            description = re.sub(r"""({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?""", r"""<span class="pre">\g<2></span>""", description, flags=re.DOTALL)
             description = Markup( description.replace("\n", Markup("<br>")) )
 
             if not f.resolution:
@@ -388,9 +245,9 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
             scoretooltip = "\n".join(issue.score.log)
             out(Markup("""
                 <li>
-                <img src="{f.issuetype.iconUrl}" height="16" width="16" border="0" align="absmiddle" alt="{f.issuetype.name}">
+                <img src="{f.issuetype.iconUrl}" height="16" width="16" class="inlineicon" alt="{f.issuetype.name}">
                 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
-                <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" border"0" align="absmiddle">
+                <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" class="inlineicon">
                 <span class="summary">{summary}</span>
                 <span class="score tooltip">{issue.score.score}<span class="tooltiptext">{scoretooltip}</span></span>
                 """).format(**locals()))
@@ -400,7 +257,7 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                 """).format(**locals()))
             out(Markup("""
                 <br>
-                <table class="subbox"><tbody><tr valign=top>
+                <table class="subbox"><tbody><tr class="subbox-row">
                 <td class="subbox-left">
                 <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span>
                 <span class="resolution">{resolution}</span>
@@ -421,7 +278,7 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
                 out(Markup("""
                     <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
                     <label for="description-toggle-{issue.id}" class="description collapsibledescription">
-                    {description}<div class="description-fader"></div></label>
+                    {description}<span class="description-fader"></span></label>
                     """).format(**locals()))
             else:
                 out(Markup("""

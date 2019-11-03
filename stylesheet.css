@@ -1,0 +1,174 @@
+li {
+    list-style: none;
+    display: block;
+    margin-bottom: 5px;
+}
+body {
+    font-family: "BlinkMacSystemFont","Segoe UI","Roboto","Oxygen","Ubuntu","Fira Sans","Droid Sans","Helvetica Neue",sans-serif;
+    font-size: 14px;
+    color: #555;
+}
+b {
+    font-weight: 550;
+    color: #111;
+}
+img {
+    border: 0;
+}
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+    letter-spacing: -1px;
+}
+.inlineicon {
+    vertical-align: middle;
+    font-size: x-small; /* because broken img src in email may cause alt text to be shown */
+    position: relative;
+}
+.inlineicon:after {  /* semi-hack that displays in case the image is broken - in most renderers... */
+    content: attr(alt); /* use the img's alt text as content */
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 16px;
+    z-index: 2;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 8px;
+    padding-right: 8px;
+    background-color: #fff; /* to not be transparent */
+}
+.pre {  /* could have used real <pre> but then html validator complains about <pre> in <label> ;-) */
+    margin: 2px;
+    padding: 4px;
+    background-color: #f5f5f5;
+    font-size: 10px;
+    line-height: 11px;
+    font-family: "lucida console", "consolas", courier;
+    white-space: pre-wrap;
+    display: block;
+}
+.description {
+    font-size: smaller;
+    display: inline-block;
+}
+.collapsibledescription {
+    /* collapsible stuff that integrates with toggle and "label"(description) */
+    max-height: 2.1rem;
+    overflow: hidden;
+    transition: max-height .25s ease-in-out;
+}
+.description-toggle {
+    display: none;
+}
+.description-toggle:checked + .collapsibledescription {
+    max-height: 100rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.description-toggle:checked + .collapsibledescription > .description-fader {
+    display: none;
+}
+.description-fader {
+    content:'';
+    width: 100%;
+    height: 50%;
+    position: absolute;
+    left:0;
+    bottom: 0;
+    background:linear-gradient(#ffffff60 0%, #ffffffff 100%);
+}
+.label {
+    font-size: 12px;
+    display: inline-block;
+    border: 1px solid #ccc;
+    background-color: #f5f5f5;
+    color: #555;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+.status {
+    border-radius: 3px;
+    border: 1px solid;
+    display: inline-block;
+    font-weight: bold;
+    padding: 2px 8px;
+    text-align: center;
+    text-transform: uppercase;
+    box-sizing: border-box;
+    font-size: 11px;
+    letter-spacing: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 10em;
+}
+.status-color-blue-gray {
+    border-color: #e4e8ed;
+    color: #4a6785;
+}
+.status-color-green {
+    color: #14892c;
+    border-color: #b2d8b9;
+}
+.status-color-yellow {
+    border-color: #ffe28c;
+    color: #594300;
+}
+.resolution {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    margin-left: 10px;
+}
+.numcomments {
+    display: block;
+    font-size: 10px;
+    margin-left: 10px;
+}
+.subbox {
+    padding: 2px;
+}
+.subbox-row {
+    vertical-align: top;
+}
+.subbox-left {
+    min-width: 8.5em;
+    padding-right: 0.5em;
+    line-height: 11px;
+}
+.subbox-middle {
+    border-left: 1px #ddd solid;
+    padding-right: 0.5em;
+}
+.subbox-right {
+    position: relative;  /* IMPORTANT: for description-fader positioning to work */
+    max-width: 130em;
+}
+.score {
+    padding-left: 1em;
+    padding-right: 1em;
+    color: #ccc;
+    font-size: 8px;
+}
+.tooltip {
+    position: relative;
+}
+.tooltip .tooltiptext {
+    visibility: hidden;
+    background-color: #eee;
+    color: #555;
+    padding: 5px;
+    width: max-content;
+    border-radius: 3px;
+    position: absolute;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: pre-wrap;
+    font-size: 10px;
+}
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
