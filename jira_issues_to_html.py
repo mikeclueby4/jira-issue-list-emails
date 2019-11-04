@@ -1,5 +1,4 @@
 from markupsafe import Markup, escape
-from myutils import *
 import re
 
 
@@ -20,10 +19,19 @@ label_scorepatterns = {
     # see string_scorepatterns
 }
 
+issuetype_scorepatterns = {
+
+}
+
+linked_issuetype_scorepatterns = {
+
+}
+
 prioscores = {
     # dict of id:scoreadjust
 }
 
+jiraconnection = None    # expect working JIRA() object here before methods called
 
 def customscore(score, issue):
     '''Any additional scoring adjustments/overrides needed
@@ -156,7 +164,7 @@ def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer
 # Important note on .format(**locals()) throughout: f-strings don't work with markupsafe, escaping doesn't happen!
 #
 
-def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, finalizer = None):
+def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
     '''Render given list of issues into HTML.
 
     For outputter/finalizer, see make_outputter()
@@ -175,6 +183,7 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
         score += (f.watches.watchCount, "Watchers")
         score += (f.votes.votes * 2, "2 x Votes")
         score += (issue.numcomments, "Comments")
+        score.patterns(f.issuetype.name, issuetype_scorepatterns, f"Type '{f.issuetype.name}' pattern ")
         score.patterns(f.summary, string_scorepatterns, "Summary pattern ")
         score.patterns(f.description, string_scorepatterns, "Description pattern ")
         score += (prioscores[f.priority.id], "Priority " + f.priority.name)
@@ -182,8 +191,8 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
             score.patterns(label, label_scorepatterns, "Label pattern ")
         for link in f.issuelinks:
             li = getattr(link, "inwardIssue", None) or getattr(link, "outwardIssue", None)
-            score.patterns(li.fields.issuetype.name, string_scorepatterns, f"Linked issue type '{li.fields.issuetype.name}' pattern ")
-            score.patterns(li.fields.summary, string_scorepatterns, f"Linked issue summary '{li.fields.summary}' pattern ")
+            score.patterns(li.fields.issuetype.name, linked_issuetype_scorepatterns, f"Linked issue type '{li.fields.issuetype.name}' pattern ")
+            score.patterns(li.fields.summary, string_scorepatterns, f"Linked issue summary {li.fields.issuetype.name} '{li.fields.summary}' pattern ")
 
         customscore(score, issue)
 
@@ -210,12 +219,11 @@ def render(jiraconnection, issues, groupheadertag = "h2", outputter = None, fina
     # Loop the groups&issues and generate HTML!
     #
 
-    print("")
-    print("Outputting issue groups:")
+    print("        Outputting issue groups:")
 
     for groupidx,issues in sorted(groups.items()):
         (sort,groupname) = groupidx
-        print(f"   {sort} {groupname} - {len(issues)} issues")
+        print(f"           {sort} {groupname} - {len(issues)} issues")
 
         out(Markup("""
     <{groupheadertag} class="groupheader">{groupname}</{groupheadertag}>

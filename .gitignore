@@ -102,5 +102,5 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-output.html
+output-*.html
 bash.exe.stackdump
