@@ -111,7 +111,7 @@ defaulthours = 7*24 + 4
 def cop(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = COP AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'])
+    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="COP issues")
     html += "<h1>cOS Core</h1>\n"
     html += jira_issues_to_html.render(issues)
     html += jira_issues_to_html.getfooter()
@@ -122,7 +122,7 @@ reports["cop"] = cop
 def icc(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = ICC AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'])
+    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="ICC issues")
     html += "<h1>InControl</h1>\n"
     html += jira_issues_to_html.render(issues)
     html += jira_issues_to_html.getfooter()
@@ -133,7 +133,7 @@ reports["icc"] = icc
 def ssm(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = SSM AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'])
+    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="SSM issues")
     html += "<h1>cOS Stream</h1>\n"
     html += jira_issues_to_html.render(issues)
     html += jira_issues_to_html.getfooter()
@@ -144,7 +144,7 @@ reports["ssm"] = ssm
 def ems(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = EMS AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'])
+    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="EMS issues")
     html += "<h1>InCenter</h1>\n"
     html += jira_issues_to_html.render(issues)
     html += jira_issues_to_html.getfooter()

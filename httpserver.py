@@ -4,13 +4,42 @@ Runs a HTTP server for enhanced/dynamic versions of jira-issue-list-emails
 """
 from http.server import HTTPServer,BaseHTTPRequestHandler
 from urllib import parse
+from myutils import *
 import argparse
+import jira_issues_to_html
+import settings
 
 class MyHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed_path = parse.urlparse(self.path)
+        m = re.match(r"""/report/([^/]+)/?(.*)""", parsed_path.path)
+        if m:
+            # m.group(2) is future extension
+            report = m.group(1)
+            if report in settings.reports:
+                html = settings.reports[report]()
+                self.send_response(200)
+                self.send_header('Content-Type',
+                                'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(html.encode('utf-8'))
+                return
+
+
+
+
         message_parts = [
+            """
+ ,------.,------. ,------.  ,-----. ,------.           .---.    .----.      .---.
+ |  .---'|   /`. '|   /`. '|  .-.  '|   /`. '         / .  |   /  ..  \    / .  |
+ |  |    |  /  | ||  /  | ||  | |  ||  /  | |        / /|  |  .  /  \  .  / /|  |
+ |  '--. |  |_.' ||  |_.' ||  | |  ||  |_.' |       / / |  |_ |  |  '  | / / |  |_
+ |  .--' |  .  '.'|  .  '.'|  | |  ||  .  '.'      /  '-'    |'  \  /  '/  '-'    |
+ |  `---.|  |\  \ |  |\  \ |  '-'  ||  |\  \       `----|  |-' \  `'  / `----|  |-'
+ `------'`--' '--'`--' '--' `-----' `--' '--'           `--'    `---''       `--'
+
+"""
             'CLIENT VALUES:',
             'client_address={} ({})'.format(
                 self.client_address,
@@ -34,7 +63,7 @@ class MyHandler(BaseHTTPRequestHandler):
             )
         message_parts.append('')
         message = '\r\n'.join(message_parts)
-        self.send_response(200)
+        self.send_response(404)
         self.send_header('Content-Type',
                          'text/plain; charset=utf-8')
         self.end_headers()

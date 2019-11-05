@@ -129,7 +129,7 @@ def make_outputter(outputter = None, finalizer = None):
 #
 
 
-def getheader(title = "", basehref = "http://jira/", outputter = None, finalizer = None):
+def getheader(title = "Issue list", basehref = "http://jira/", outputter = None, finalizer = None):
     '''Return default HTML header as a string. Caller can polish/append as needed.
 
     For outputter/finalizer, see make_outputter()
