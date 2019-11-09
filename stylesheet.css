@@ -15,6 +15,9 @@ b {
 img {
     border: 0;
 }
+h1 {
+    margin-top: 30px;
+}
 h1, h2, h3, h4, h5, h6 {
     font-weight: 500;
     letter-spacing: -1px;
@@ -171,4 +174,12 @@ h1, h2, h3, h4, h5, h6 {
 .tooltip:hover .tooltiptext {
     visibility: visible;
     opacity: 1;
+}
+.footer {
+    margin-top: 50px;
+    margin-bottom: 10px;
+    padding-top: 8px;
+    border-top: 1px solid #888;
+    font-size: 12px;
+    color: #888;
 }

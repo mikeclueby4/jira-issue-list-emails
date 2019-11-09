@@ -11,6 +11,9 @@ import re
 # We expect a working JIRA() object here before out methods are called
 jiraconnection = None   # type: jira.client.JIRA
 
+# <base href> for all report emails (default settings.py will set this = the REST jira server url)
+basehref = "http://jira/"   # type: str
+
 
 string_scorepatterns = {
     # dict of regexp:scoreadjust
@@ -85,7 +88,7 @@ def make_outputter(outputter = None, finalizer = None):
         str = escape(str).replace("\xa0", Markup("&nbsp;"))
         outs.append(str)    # instead of raw append on string = expensiiiive
     def myfinalizer():
-        return "".join(outs)
+        return Markup("").join(outs)
     return myoutputter, myfinalizer
 
 
@@ -192,7 +195,8 @@ def groupissues(issues):
 #
 
 
-def getheader(title = "Issue list", basehref = "http://jira/", outputter = None, finalizer = None):
+def getheader(title = "Issue list", outputter = None, finalizer = None):
+
     '''Return default HTML header as a string. Caller can polish/append as needed.
 
     For outputter/finalizer, see make_outputter()
@@ -206,7 +210,7 @@ def getheader(title = "Issue list", basehref = "http://jira/", outputter = None,
     <title>{title}</title>
     <base href="{basehref}" target="_blank" />
     <style type="text/css">
-""").format(**locals()))
+""").format(basehref=basehref, **locals()))
 
     with open("stylesheet.css", "r") as cssfile:
         out(Markup(cssfile.read()))
@@ -307,7 +311,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
                 <td class="subbox-right">
             """))
 
-            if description.count("<br>")>=2:
+            if description.count("<br")>=2:
                 out(Markup("""
                     <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox" />
                     <label for="description-toggle-{issue.id}" class="description collapsibledescription">

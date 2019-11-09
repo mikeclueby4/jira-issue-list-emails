@@ -9,6 +9,7 @@
 from jira import JIRA        # pip install jira
 from myutils import isearch
 from typing import Dict,Callable
+from markupsafe import Markup, escape
 import makereport
 
 debug = print if (__name__ == "__main__") else lambda _ : _   # execute settings.py directly to test
@@ -29,7 +30,10 @@ jiraoptions = {
     "timeout": 10
 }
 
+makereport.basehref = jiraoptions["server"]
+
 jiraconnection = JIRA(**jiraoptions)
+
 makereport.jiraconnection = jiraconnection
 
 
@@ -56,8 +60,9 @@ makereport.string_scorepatterns = {  # remember, several entry lines can match a
     r"(crash|\bhang[ings]*|freezes?|frozen?|interrupt)": 7,
     r"(danger[ous]*|severe|unsafe)": 5,   # not 'severely', it's too common in that form
     r"(\bbug[gedin]*|overflow[ings]*|exception[eds]*|watchdog[inged]*|lock[ed ]*down|lock[seding]* (me |you | us )?out)": 5,
-    r"(fail[ingureds]*|does[' ]no?t work|(won't|not|stops?|stopped) work[sing]*|breaks?|broken?|erron[eou]+s[ley]*|incorrect[ley]*)": 3,
-    r"(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|not[- ]([a-z]+[- ])?useful|weird|strange|problem|should[' ]no?t|can't|cannot)": 2,
+    r"[!?]": 2,
+    r"(fail[ingureds]*|does[' ]no?t work|(won't|not|stops?|stopped) work[sing]*|breaks?|broken?|erron[eou]+s[ley]*|incorrect[ley]*|[ui]nstable|unexpected)": 3,
+    r"(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|error[sing]*|unable|impossible|not[- ]([a-z]+[- ])?(good|useful)|weird|strange|problem|should[' ]no?t|can't|cannot|\bnot\b|sometimes|actual[ly]*)": 2,
 }
 
 # scoring of LABELS
@@ -93,11 +98,11 @@ makereport.customscore = mycustomscore
 def mycustomgroup(issue):
     f = issue.fields
     if f.resolution:
-        if isearch(r"fixed", f.resolution.name):
-            return 3,"Resolved: Fixed"
+        if isearch(r"(fixed|done)", f.resolution.name):
+            return 3,"Resolved: Fixed/Done"
         return  4,"Resolved: Other"
 
-    if isearch(r"(need|wait|on[-_ .]?hold)", f.status.name):
+    if isearch(r"(need|wait|on[-_ .]?hold|defer)", f.status.name):
         return 1,"Waiting for something"
 
     if f.status.statusCategory.key=='new' and not isearch(r"(confirmed|accepted)", f.status.name):
@@ -119,8 +124,8 @@ defaulthours = 7*24 + 4
 def cop(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = COP AND created >= -{hours}h", maxResults=1000)
 
-    html = makereport.getheader(basehref = jiraoptions['server'], title="COP issues")
-    html += "<h1>cOS Core</h1>\n"
+    html = makereport.getheader(title="COP issues")
+    html += Markup("<h1>cOS Core</h1>\n")
     html += makereport.render(issues)
     html += makereport.getfooter()
 
@@ -130,8 +135,8 @@ reports["cop"] = cop
 def icc(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = ICC AND created >= -{hours}h", maxResults=1000)
 
-    html = makereport.getheader(basehref = jiraoptions['server'], title="ICC issues")
-    html += "<h1>InControl</h1>\n"
+    html = makereport.getheader(title="ICC issues")
+    html += Markup("<h1>InControl</h1>\n")
     html += makereport.render(issues)
     html += makereport.getfooter()
 
@@ -141,8 +146,8 @@ reports["icc"] = icc
 def ssm(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = SSM AND created >= -{hours}h", maxResults=1000)
 
-    html = makereport.getheader(basehref = jiraoptions['server'], title="SSM issues")
-    html += "<h1>cOS Stream</h1>\n"
+    html = makereport.getheader(title="SSM issues")
+    html += Markup("<h1>cOS Stream</h1>\n")
     html += makereport.render(issues)
     html += makereport.getfooter()
 
@@ -152,13 +157,47 @@ reports["ssm"] = ssm
 def ems(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = EMS AND created >= -{hours}h", maxResults=1000)
 
-    html = makereport.getheader(basehref = jiraoptions['server'], title="EMS issues")
-    html += "<h1>InCenter</h1>\n"
+    html = makereport.getheader(title="EMS issues")
+    html += Markup("<h1>InCenter</h1>\n")
     html += makereport.render(issues)
     html += makereport.getfooter()
 
     return html
 reports["ems"] = ems
+
+def otherengineering(hours=defaulthours):
+    html = makereport.getheader(title="All other product issues")
+
+    categoryfilter = r"""(core|stream|centralized|products|mfa)"""
+    skippedcategories = {}
+
+    for project in jiraconnection.projects():
+
+        if not hasattr(project, "projectCategory"):
+            debug(f"      {project.key} ({project.name}) - No. No category.")
+        elif not isearch(categoryfilter, project.projectCategory.name):
+            skippedcategories[project.projectCategory.name] = project.key + " - " + project.name
+            debug(f"      {project.key} ({project.name}) - No. \"{project.projectCategory.name}\" does not match.")
+        elif project.key in ("COP,SSM,EMS,ICC"):
+            pass # did these in separate reports
+        else:
+            debug(f"      {project.key} ({project.name}) category {project.projectCategory.name} ...")
+            issues = jiraconnection.search_issues(f"project = {project.key} AND created >= -{hours}h", maxResults=1000)
+            html += Markup("<h1>{}</h1>\n").format(project.name)
+            html += makereport.render(issues)
+
+    html += Markup("""<div class="footer">Skipped project categories:<ul>""")
+    for cat,example in skippedcategories.items():
+        if cat=="":
+            cat="(none)"
+        html += Markup("""<li> "{}" e.g. {}</li>""").format(cat,example)
+    html += Markup("</ul></div>")
+    html += makereport.getfooter()
+
+
+    return html
+
+reports["otherengineering"] = otherengineering
 
 
 #
@@ -166,6 +205,10 @@ reports["ems"] = ems
 #
 
 if __name__ == "__main__":
+    with open("output-otherengineering.html", "w", encoding="utf-8") as f:
+        f.write(otherengineering(24*60))
+
+elif __name__ == "__main__":
 
     debug("\nRunning all registered reports and dumping to HTML files:")
 
