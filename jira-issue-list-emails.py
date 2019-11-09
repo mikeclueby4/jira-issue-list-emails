@@ -1,5 +1,5 @@
 import settings
-import jira_issues_to_html
+import makereport
 
 
 

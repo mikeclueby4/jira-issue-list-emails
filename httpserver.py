@@ -5,9 +5,12 @@ Runs a HTTP server for enhanced/dynamic versions of jira-issue-list-emails
 from http.server import HTTPServer,BaseHTTPRequestHandler
 from urllib import parse
 from myutils import *
+from typing import List
 import argparse
-import jira_issues_to_html
+import makereport
 import settings
+
+isearch
 
 class MyHandler(BaseHTTPRequestHandler):
 
@@ -30,7 +33,7 @@ class MyHandler(BaseHTTPRequestHandler):
 
 
         message_parts = [
-            """
+            r"""
  ,------.,------. ,------.  ,-----. ,------.           .---.    .----.      .---.
  |  .---'|   /`. '|   /`. '|  .-.  '|   /`. '         / .  |   /  ..  \    / .  |
  |  |    |  /  | ||  /  | ||  | |  ||  /  | |        / /|  |  .  /  \  .  / /|  |
@@ -59,7 +62,7 @@ class MyHandler(BaseHTTPRequestHandler):
         ]
         for name, value in sorted(self.headers.items()):
             message_parts.append(
-                '{}={}'.format(name, value.rstrip())
+                '{}={}'.format(name, str(value).rstrip())
             )
         message_parts.append('')
         message = '\r\n'.join(message_parts)

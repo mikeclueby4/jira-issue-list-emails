@@ -1,10 +1,16 @@
 from markupsafe import Markup, escape
+from typing import List, Set, Dict, Tuple, Optional
+import jira
 import re
 
 
 #
 # Defaults expected to be overriden from main script
 #
+
+# We expect a working JIRA() object here before out methods are called
+jiraconnection = None   # type: jira.client.JIRA
+
 
 string_scorepatterns = {
     # dict of regexp:scoreadjust
@@ -13,33 +19,40 @@ string_scorepatterns = {
     #   r'(reallybad|othercatastrophe)': 15,
     #   r'(slightly noticeable)': 5,
     #   r'(internal only|minor)': -10
-}
+
+} # type: Dict[str,int]
 
 label_scorepatterns = {
     # see string_scorepatterns
-}
+
+} # type: Dict[str,int]
 
 issuetype_scorepatterns = {
 
-}
+} # type: Dict[str,int]
 
 linked_issuetype_scorepatterns = {
 
-}
+} # type: Dict[str, int]
 
 prioscores = {
-    # dict of id:scoreadjust
-}
+    #  123: -5,
 
-jiraconnection = None    # expect working JIRA() object here before methods called
+} # type: Dict[int, int]
 
-def customscore(score, issue):
+
+
+def customscore(score,   # type: Score
+                issue    # type: jira.resources.Issue
+                ):
     '''Any additional scoring adjustments/overrides needed
     Override this function to implement your own functionality!
     '''
     pass
 
-def customgroup(issue):
+def customgroup(issue       # type: jira.resources.Issue
+                ):
+    # type: Tuple[text,string]
     '''Determine what group an issue should be listed under.
     Override this function to implement your own functionality!
 
@@ -48,6 +61,34 @@ def customgroup(issue):
         displayname: string
     '''
     return (0, "Issues")
+
+
+
+#
+# utils
+#
+
+def make_outputter(outputter = None, finalizer = None):
+    '''Returns an output(str) and finalizer() function if not supplied as input.
+    Internals of functionality do not matter
+    '''
+    # Both functions supplied? Use them.
+    if outputter and finalizer:
+        def outwrapper(str):
+            str = escape(str).replace("\xa0", Markup("&nbsp;"))
+            outputter(str)
+        return outwrapper, finalizer
+
+    # Define our own spooler that deallocates itself when the function references go out of scope
+    outs = []
+    def myoutputter(str):
+        str = escape(str).replace("\xa0", Markup("&nbsp;"))
+        outs.append(str)    # instead of raw append on string = expensiiiive
+    def myfinalizer():
+        return "".join(outs)
+    return myoutputter, myfinalizer
+
+
 
 #
 # "Score" class
@@ -58,7 +99,7 @@ def customgroup(issue):
 class Score:
     def __init__(self,
                 score=0,    # type: int
-                text=None   # type: Optional[str]
+                text=None   # type: str
                 ):
         self.score = score
         self.log = []
@@ -92,35 +133,57 @@ class Score:
                 self += (adjust, prefix + pattern)
 
 
+def scoreissues(issues):
+    """ Loop through and score the given issues
+    Score is stored in the .score attribute of each issue as a "Score" object
+    """
+
+    for issue in issues:
+        issue.numcomments = len(jiraconnection.comments(issue.key))
+        f = issue.fields
+        score = Score()
+        score += (len(f.issuelinks), "Linked issues")
+        score += (f.watches.watchCount, "Watchers")
+        score += (f.votes.votes * 2, "2 x Votes")
+        score += (issue.numcomments, "Comments")
+        score.patterns(f.issuetype.name, issuetype_scorepatterns, f"Type '{f.issuetype.name}' pattern ")
+        score.patterns(f.summary, string_scorepatterns, "Summary pattern ")
+        score.patterns(f.description, string_scorepatterns, "Description pattern ")
+        score += (prioscores[f.priority.id], "Priority " + f.priority.name)
+        for label in f.labels:
+            score.patterns(label, label_scorepatterns, "Label pattern ")
+        for link in f.issuelinks:
+            li = getattr(link, "inwardIssue", None) or getattr(link, "outwardIssue", None)
+            score.patterns(li.fields.issuetype.name, linked_issuetype_scorepatterns, f"Linked issue type '{li.fields.issuetype.name}' pattern ")
+            score.patterns(li.fields.summary, string_scorepatterns, f"Linked issue summary {li.fields.issuetype.name} '{li.fields.summary}' pattern ")
+
+        customscore(score, issue)
+
+        setattr(issue, "score", score)
+
+
 #
-# utils
+# Issue grouping
 #
 
-def make_outputter(outputter = None, finalizer = None):
-    '''Returns an output(str) and finalizer() function if not supplied as input.
-    Internals of functionality do not matter
-    '''
-    # Both functions supplied? Use them.
-    if outputter and finalizer:
-        def outwrapper(str):
-            str = escape(str).replace("\xa0", Markup("&nbsp;"))
-            outputter(str)
-        return outwrapper, finalizer
+def groupissues(issues):
+    #
+    # Group issues per status/resolution
+    #
 
-    # Define our own spooler that deallocates itself when the function references go out of scope
-    outs = []
-    def myoutputter(str):
-        str = escape(str).replace("\xa0", Markup("&nbsp;"))
-        outs.append(str)    # instead of raw append on string = expensiiiive
-    def myfinalizer():
-        return "".join(outs)
-    return myoutputter, myfinalizer
+    groups = {
+        # (sort,groupname) = list of issues
+    } # type: Dict[Tuple[int,str] , List[jira.resources.Issue]]
 
+    for issue in issues:
+        groupkey = customgroup(issue)
 
+        if not groupkey in groups:
+            groups[groupkey] = []
 
+        groups[groupkey].append(issue)
 
-
-
+    return groups
 
 #
 # HTML page header
@@ -139,9 +202,9 @@ def getheader(title = "Issue list", basehref = "http://jira/", outputter = None,
     out(Markup("""<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>{title}</title>
-    <base href="{basehref}" target="_blank">
+    <base href="{basehref}" target="_blank" />
     <style type="text/css">
 """).format(**locals()))
 
@@ -171,48 +234,10 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
     '''
     (out,finalizer) = make_outputter(outputter, finalizer)
 
-    #
-    # Loop through and score the returned issues
-    #
+    scoreissues(issues)
 
-    for issue in issues:
-        issue.numcomments = len(jiraconnection.comments(issue.key))
-        f = issue.fields
-        score = Score()
-        score += (len(f.issuelinks), "Linked issues")
-        score += (f.watches.watchCount, "Watchers")
-        score += (f.votes.votes * 2, "2 x Votes")
-        score += (issue.numcomments, "Comments")
-        score.patterns(f.issuetype.name, issuetype_scorepatterns, f"Type '{f.issuetype.name}' pattern ")
-        score.patterns(f.summary, string_scorepatterns, "Summary pattern ")
-        score.patterns(f.description, string_scorepatterns, "Description pattern ")
-        score += (prioscores[f.priority.id], "Priority " + f.priority.name)
-        for label in f.labels:
-            score.patterns(label, label_scorepatterns, "Label pattern ")
-        for link in f.issuelinks:
-            li = getattr(link, "inwardIssue", None) or getattr(link, "outwardIssue", None)
-            score.patterns(li.fields.issuetype.name, linked_issuetype_scorepatterns, f"Linked issue type '{li.fields.issuetype.name}' pattern ")
-            score.patterns(li.fields.summary, string_scorepatterns, f"Linked issue summary {li.fields.issuetype.name} '{li.fields.summary}' pattern ")
+    groups = groupissues(issues)
 
-        customscore(score, issue)
-
-        setattr(issue, "score", score)
-
-
-    #
-    # Group issues per status/resolution
-    #
-
-    groups = {
-        # (sort,groupname) = list of issues
-    }
-    for issue in issues:
-        group = customgroup(issue)
-
-        if not group in groups:
-            groups[group] = []
-
-        groups[group].append(issue)
 
 
     #
@@ -244,7 +269,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
 
             summary = Markup(summary)
             description = re.sub(r"""({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?""", r"""<span class="pre">\g<2></span>""", description, flags=re.DOTALL)
-            description = Markup( description.replace("\n", Markup("<br>")) )
+            description = Markup( description.replace("\n", Markup("<br />")) )
 
             if not f.resolution:
                 resolution = ""
@@ -253,9 +278,9 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
             scoretooltip = "\n".join(issue.score.log)
             out(Markup("""
                 <li>
-                <img src="{f.issuetype.iconUrl}" height="16" width="16" class="inlineicon" alt="{f.issuetype.name}">
+                <img src="{f.issuetype.iconUrl}" height="16" width="16" class="inlineicon" alt="{f.issuetype.name}" />
                 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
-                <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" class="inlineicon">
+                <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" class="inlineicon" />
                 <span class="summary">{summary}</span>
                 <span class="score tooltip">{issue.score.score}<span class="tooltiptext">{scoretooltip}</span></span>
                 """).format(**locals()))
@@ -264,7 +289,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
                 <span class="label">{label}</span>
                 """).format(**locals()))
             out(Markup("""
-                <br>
+                <br />
                 <table class="subbox"><tbody><tr class="subbox-row">
                 <td class="subbox-left">
                 <span class="status status-color-{f.status.statusCategory.colorName}">{f.status.name}</span>
@@ -284,7 +309,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
 
             if description.count("<br>")>=2:
                 out(Markup("""
-                    <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox">
+                    <input id="description-toggle-{issue.id}" class="description-toggle" type="checkbox" />
                     <label for="description-toggle-{issue.id}" class="description collapsibledescription">
                     {description}<span class="description-fader"></span></label>
                     """).format(**locals()))

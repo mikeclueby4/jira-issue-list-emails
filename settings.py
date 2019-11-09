@@ -1,7 +1,15 @@
+#!/usr/bin/env python
+"""
+# settings.py
+#
+# User-modified settings, patterns, groupings, report queries...
+# This file can be executed to instantly generate all "output-myreportname.html" in current directory
+"""
 
 from jira import JIRA        # pip install jira
 from myutils import isearch
-import jira_issues_to_html
+from typing import Dict,Callable
+import makereport
 
 debug = print if (__name__ == "__main__") else lambda _ : _   # execute settings.py directly to test
 
@@ -22,7 +30,7 @@ jiraoptions = {
 }
 
 jiraconnection = JIRA(**jiraoptions)
-jira_issues_to_html.jiraconnection = jiraconnection
+makereport.jiraconnection = jiraconnection
 
 
 #
@@ -30,19 +38,19 @@ jira_issues_to_html.jiraconnection = jiraconnection
 #
 
 # scoring of PRIORITIES
-jira_issues_to_html.prioscores = {}  # [id] = score
-priorities = jiraconnection.priorities()
+priorities = jiraconnection.priorities()   # this is already sorted highest (idx 0) to lowest
 
 debug("\nScoring adjust for Priorities:")
 for idx,prio in enumerate(priorities):
     score = ( len(priorities) - 1 - idx ) * 10     # 0, 10, 20, ...
     if isearch("emergenc", prio.name):
-        score += 30
-    jira_issues_to_html.prioscores[prio.id] = score
+        score += 30                                # +30 for emergencies
+
     debug(f"    {prio.name} (id {prio.id}) = +{score}")
+    makereport.prioscores[prio.id] = score
 
 # scoring of STRINGS
-jira_issues_to_html.string_scorepatterns = {  # remember, several entry lines can match and will get added
+makereport.string_scorepatterns = {  # remember, several entry lines can match and will get summed
     r"(emergenc[yies]*|critical|catastroph)": 10,
     r"(vuln[erableity]*|attack|hack[sed]*|\bd?dos(:d|'d|ed|ing)?\b)": 7,
     r"(crash|\bhang[ings]*|freezes?|frozen?|interrupt)": 7,
@@ -53,14 +61,14 @@ jira_issues_to_html.string_scorepatterns = {  # remember, several entry lines ca
 }
 
 # scoring of LABELS
-jira_issues_to_html.label_scorepatterns = {  # remember, several entry lines can match and will get added
+makereport.label_scorepatterns = {  # remember, several entry lines can match and will get summed
     r'support_need': 5,
     r'^support': 5,
     r'(emergenc[yies]*|critical|vuln)': 10
 }
 
 # scoring of issue types
-jira_issues_to_html.issuetype_scorepatterns = {
+makereport.issuetype_scorepatterns = {
     r'(defect|\bbug\b|vuln)': 20,
     r'(rfe)': 15,
     r'(epic)': 10,
@@ -68,7 +76,7 @@ jira_issues_to_html.issuetype_scorepatterns = {
 }
 
 # scoring of LINKED issue types
-jira_issues_to_html.linked_issuetype_scorepatterns = {
+makereport.linked_issuetype_scorepatterns = {
     r'(defect|\bbug\b|vuln)': 10,
     r'(rfe)': 10,
 }
@@ -79,7 +87,7 @@ def mycustomscore(score, issue):
     f = issue.fields
     if f.resolution and f.resolution.name.lower() in ["duplicate", "rejected", "invalid"]:
         score.set(-1, "Duplicate/Rejected/Invalid")
-jira_issues_to_html.customscore = mycustomscore
+makereport.customscore = mycustomscore
 
 # custom issue grouping
 def mycustomgroup(issue):
@@ -96,7 +104,7 @@ def mycustomgroup(issue):
         return 0,"Unconfirmed / To Do / New"
 
     return 2,"Confirmed / Progressing"
-jira_issues_to_html.customgroup = mycustomgroup
+makereport.customgroup = mycustomgroup
 
 
 
@@ -105,16 +113,16 @@ jira_issues_to_html.customgroup = mycustomgroup
 # Callouts that create our HTML reports (= mail content or served-up pages)
 #
 
-reports = {}   # type: Dict[str,callable]
+reports = {}   # type: Dict[str,Callable[[], str]]
 defaulthours = 7*24 + 4
 
 def cop(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = COP AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="COP issues")
+    html = makereport.getheader(basehref = jiraoptions['server'], title="COP issues")
     html += "<h1>cOS Core</h1>\n"
-    html += jira_issues_to_html.render(issues)
-    html += jira_issues_to_html.getfooter()
+    html += makereport.render(issues)
+    html += makereport.getfooter()
 
     return html
 reports["cop"] = cop
@@ -122,10 +130,10 @@ reports["cop"] = cop
 def icc(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = ICC AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="ICC issues")
+    html = makereport.getheader(basehref = jiraoptions['server'], title="ICC issues")
     html += "<h1>InControl</h1>\n"
-    html += jira_issues_to_html.render(issues)
-    html += jira_issues_to_html.getfooter()
+    html += makereport.render(issues)
+    html += makereport.getfooter()
 
     return html
 reports["icc"] = icc
@@ -133,10 +141,10 @@ reports["icc"] = icc
 def ssm(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = SSM AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="SSM issues")
+    html = makereport.getheader(basehref = jiraoptions['server'], title="SSM issues")
     html += "<h1>cOS Stream</h1>\n"
-    html += jira_issues_to_html.render(issues)
-    html += jira_issues_to_html.getfooter()
+    html += makereport.render(issues)
+    html += makereport.getfooter()
 
     return html
 reports["ssm"] = ssm
@@ -144,10 +152,10 @@ reports["ssm"] = ssm
 def ems(hours=defaulthours):
     issues = jiraconnection.search_issues(f"project = EMS AND created >= -{hours}h", maxResults=1000)
 
-    html = jira_issues_to_html.getheader(basehref = jiraoptions['server'], title="EMS issues")
+    html = makereport.getheader(basehref = jiraoptions['server'], title="EMS issues")
     html += "<h1>InCenter</h1>\n"
-    html += jira_issues_to_html.render(issues)
-    html += jira_issues_to_html.getfooter()
+    html += makereport.render(issues)
+    html += makereport.getfooter()
 
     return html
 reports["ems"] = ems
