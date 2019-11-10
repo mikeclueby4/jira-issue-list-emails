@@ -1,12 +1,17 @@
 from markupsafe import Markup, escape
 from typing import List, Set, Dict, Tuple, Optional
 import jira
+import makereport
 import re
+from myutils import *
 
 
 #
 # Defaults expected to be overriden from main script
 #
+
+def debug(text):
+    pass
 
 # We expect a working JIRA() object here before out methods are called
 jiraconnection = None   # type: jira.client.JIRA
@@ -170,9 +175,9 @@ def scoreissues(issues):
 #
 
 def groupissues(issues):
-    #
-    # Group issues per status/resolution
-    #
+    """Group issues per status/resolution. Calls customgroup() for every issue to get groupkey
+    Returns an array of groupkey = array of Issues
+    """
 
     groups = {
         # (sort,groupname) = list of issues
@@ -195,22 +200,23 @@ def groupissues(issues):
 #
 
 
-def getheader(title = "Issue list", outputter = None, finalizer = None):
-
-    '''Return default HTML header as a string. Caller can polish/append as needed.
+def getheader(title = "Issue list", mybasehref = None, outputter = None, finalizer = None):
+    """Return default HTML header as a string. Caller can polish/append as needed.
 
     For outputter/finalizer, see make_outputter()
-    '''
+    """
     (out,finalizer) = make_outputter(outputter, finalizer)
+    if mybasehref is None:
+        mybasehref = basehref
 
     out(Markup("""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <title>{title}</title>
-    <base href="{basehref}" target="_blank" />
+    <base href="{mybasehref}" target="_blank" />
     <style type="text/css">
-""").format(basehref=basehref, **locals()))
+""").format(**locals()))
 
     with open("stylesheet.css", "r") as cssfile:
         out(Markup(cssfile.read()))
@@ -272,7 +278,8 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
                     description = re.sub(pattern, r"<b>\g<0></b>", description, flags=re.IGNORECASE)
 
             summary = Markup(summary)
-            description = re.sub(r"""({noformat}|{code[^}]*}) *\n*(.*?)\n *({noformat}|{code}) *\n?""", r"""<span class="pre">\g<2></span>""", description, flags=re.DOTALL)
+            description = re.sub(r"""({noformat}|{code[^}]*}) *\n*(.*?)({noformat}|{code}) *\n?""", r"""<span class="pre">\g<2></span>""", description, flags=re.DOTALL)
+            description = re.sub(r"""({quote}) *\n*(.*?)({quote}) *\n?""", r"""<span class="quote">\g<2></span>""", description, flags=re.DOTALL)
             description = Markup( description.replace("\n", Markup("<br />")) )
 
             if not f.resolution:
@@ -281,7 +288,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
                 resolution = f"Resolution: {f.resolution.name}"
             scoretooltip = "\n".join(issue.score.log)
             out(Markup("""
-                <li>
+                <li class="issue-li">
                 <img src="{f.issuetype.iconUrl}" height="16" width="16" class="inlineicon" alt="{f.issuetype.name}" />
                 <a class="issue-link" href="/browse/{issue.key}">{issue.key}</a>
                 <img src="{f.priority.iconUrl}" alt="{f.priority.name}" height="16" width="16" class="inlineicon" />
@@ -347,8 +354,80 @@ def getfooter(outputter = None, finalizer = None):
     (out,finalizer) = make_outputter(outputter, finalizer)
 
     out(Markup("""
-    </body>
-    </html>
+</body>
+</html>
     """))
 
     return finalizer()
+
+
+
+#
+# Settings utilities
+#
+
+def makecategoryreporter(categoryfilter, title, defaulthours = 24*7+4, reportskippedcategories=False):
+    """Returns a freshly-created reporter function that works on projects in given category/ies"""
+    def __func(hours = defaulthours):
+        reportskipped = reportskippedcategories
+        html = makereport.getheader(title=title)
+
+        skippedcategories = {}
+        emptyprojects = []
+
+        allprojects = jiraconnection.projects()
+        totalnumprojects = len(allprojects)
+        matchedprojects = 0
+
+        for project in allprojects:
+
+            if not hasattr(project, "projectCategory"):
+                debug(f"      {project.key} ({project.name}) - No. No category.")
+            elif not isearch(categoryfilter, project.projectCategory.name):
+                skippedcategories[project.projectCategory.name] = project.key + " - " + project.name
+                debug(f"      {project.key} ({project.name}) - No. \"{project.projectCategory.name}\" does not match.")
+            else:
+                matchedprojects += 1
+                debug(f"      {project.key} ({project.name}) category {project.projectCategory.name} ...")
+                issues = jiraconnection.search_issues(f"project = {project.key} AND created >= -{hours}h", maxResults=1000)
+                reporthtml = makereport.render(issues)
+                if len(reporthtml)<1:
+                    emptyprojects.append(project.key + " - " + project.name)
+                else:
+                    html += Markup("<h1>{}</h1>\n").format(project.name)
+                    html += reporthtml
+
+        if totalnumprojects<1:
+            html += Markup("""<p>&nbsp;<p>&nbsp
+                <h1>Uh oh</h1>
+                We can't see ANY projects in Jira. Permission problem?
+            """).format(**locals())
+
+        elif matchedprojects<1:
+            html += Markup("""<p>&nbsp;<p>&nbsp
+                <h1>Did someone change the categories under us?!?</h1>
+                Our category filter "{categoryfilter}" matched NO projects out of total {totalnumprojects}
+            """).format(**locals())
+            reportskipped = True
+
+
+        html += Markup("""<div class="footer">\n""")
+        if len(emptyprojects)>0:
+            html += Markup("""No issues in projects:<ul>\n""")
+            for projtext in emptyprojects:
+                html += Markup("""<li> {}</li>\n""").format(projtext)
+            html += Markup("</ul>\n")
+
+        if reportskipped and len(skippedcategories)>0:
+            html += Markup("""Project categories not in listing:<ul>\n""")
+            for cat,example in skippedcategories.items():
+                if cat=="":
+                    cat="(none)"
+                html += Markup("""<li> "{}" e.g. {}</li>\n""").format(cat,example)
+            html += Markup("</ul>\n")
+
+        html += Markup("</div>\n")
+        html += makereport.getfooter()
+
+        return html
+    return __func

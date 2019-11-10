@@ -9,29 +9,40 @@ from typing import List
 import argparse
 import makereport
 import settings
+from markupsafe import Markup,escape
 
 isearch
 
 class MyHandler(BaseHTTPRequestHandler):
 
+    def ret200(self):
+        self.send_response(200)
+        self.send_header('Content-Type',
+                        'text/html; charset=utf-8')
+        self.end_headers()
+
+    def outhtml(self, html):
+        self.wfile.write(html.encode('utf-8'))
+
+
     def do_GET(self):
         parsed_path = parse.urlparse(self.path)
+
+        if parsed_path.path=="/":
+            self.frontpage()
+            return
+
         m = re.match(r"""/report/([^/]+)/?(.*)""", parsed_path.path)
         if m:
             # m.group(2) is future extension
             report = m.group(1)
             if report in settings.reports:
                 html = settings.reports[report]()
-                self.send_response(200)
-                self.send_header('Content-Type',
-                                'text/html; charset=utf-8')
-                self.end_headers()
-                self.wfile.write(html.encode('utf-8'))
+                self.ret200()
+                self.outhtml(html)
                 return
 
-
-
-
+        # 404!
         message_parts = [
             r"""
  ,------.,------. ,------.  ,-----. ,------.           .---.    .----.      .---.
@@ -72,6 +83,30 @@ class MyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(message.encode('utf-8'))
 
+    def frontpage(self):
+        self.ret200()
+        self.outhtml(makereport.getheader(title="Reports available", mybasehref=""))
+        self.outhtml("""
+Reports available:
+<ul>
+""")
+        for name,_ in settings.reports.items():
+            self.outhtml(Markup("""
+<li><a href="/report/{name}">{name}</a></li>
+""").format(name=name))
+
+        self.outhtml("""
+</ul>""")
+        self.outhtml(makereport.getfooter())
+
+
+
+
+def serve(addrport):
+    httpd = HTTPServer((args.listen,args.port), MyHandler)
+    print(f"Starting HTTP server on {addrport}")
+    httpd.serve_forever()
+    print("Server died?!")
 
 
 if __name__ == "__main__":
@@ -91,7 +126,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    httpd = HTTPServer((args.listen,args.port), MyHandler)
-    print(f"Starting HTTP server on {args.listen}:{args.port}")
-    httpd.serve_forever()
-    print("Server died?!")
+    serve((args.listen,args.port))

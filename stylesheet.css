@@ -1,4 +1,4 @@
-li {
+.issue-li {
     list-style: none;
     display: block;
     margin-bottom: 5px;
@@ -50,6 +50,14 @@ h1, h2, h3, h4, h5, h6 {
     font-family: "lucida console", "consolas", courier;
     white-space: pre-wrap;
     display: block;
+}
+.quote {
+    display: block;
+    margin-top: 5px;
+    margin-bottom: 5px;
+    padding-left: 1em;
+    margin-left: 1em;
+    border-left: 1px dotted #888;
 }
 .description {
     font-size: smaller;
