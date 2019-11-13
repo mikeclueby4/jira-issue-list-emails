@@ -6,23 +6,31 @@ User-modified settings, patterns, groupings, report queries...
 This file can be executed to instantly generate all "output-myreportname.html" in current directory
 """
 
-from jira import JIRA        # pip install jira
-from myutils import isearch
-from typing import Dict,Callable,Any
+from typing import Any, Callable, Dict
+
+from jira import JIRA
 from markupsafe import Markup, escape
+
+from makereport import makecategoryreporter
 import makereport
+from myutils import isearch
 
-debug = print if (__name__ == "__main__") else lambda _ : _   # execute settings.py directly to test
+debug = print if (__name__ == "__main__") else lambda _ : _   # settings.py executed directly? more console output!
 
-# options for email sending
+
+# options for EMAIL SENDING
+
 emailoptions = {
     "from": "JIRA <jira@clavister.com>",
-    "include_own_server_url": "http://jira.clavister.com:81",   # (base of) URL to include in emails for update/dynamic version of sent mails
+    # "include_own_server_url": "http://jira.clavister.com:81",   # (base of) URL to include in emails for update/dynamic version of sent mails
+    "include_own_server_url": "http://127.0.0.1:81",
     "mailserver_ip": "127.0.0.1",
     "mailserver_port": 25,
 }
 
-# See https://jira.readthedocs.io/en/master/examples.html#initialization
+
+# options for JIRA REST API CONNECTION  - see https://jira.readthedocs.io/en/master/examples.html#initialization
+
 jiraoptions = {
     "server": "http://jira.clavister.com",
     "basic_auth": ("readonly", "NotSecret"),
@@ -30,30 +38,37 @@ jiraoptions = {
     "timeout": 10
 }
 
-makereport.basehref = jiraoptions["server"]
+makereport.basehref = jiraoptions["server"]    # <base href=""> for generated reports - "always" same as base of REST service
 
 jiraconnection = JIRA(**jiraoptions)
 
 makereport.jiraconnection = jiraconnection
 
 
+########################################################################
 #
-# scoring functions and patterns
+# SCORING RELATED
 #
 
-# scoring of PRIORITIES
+
+# scoring of PRIORITIES  -> .prioscores[id] = adjust
+
 priorities = jiraconnection.priorities()   # this is already sorted highest (idx 0) to lowest
 
 debug("\nScoring adjust for Priorities:")
 for idx,prio in enumerate(priorities):
+
     score = ( len(priorities) - 1 - idx ) * 10     # 0, 10, 20, ...
+
     if isearch("emergenc", prio.name):
         score += 30                                # +30 for emergencies
 
     debug(f"    {prio.name} (id {prio.id}) = +{score}")
     makereport.prioscores[prio.id] = score
 
-# scoring of STRINGS
+
+# regexp-based scoring of STRINGS - text in Summary and Description
+
 makereport.string_scorepatterns = {  # remember, several entry lines can match and will get summed
     r"(emergenc[yies]*|critical|catastroph)": 10,
     r"(vuln[erableity]*|attack|hack[sed]*|\bd?dos(:d|'d|ed|ing)?\b)": 7,
@@ -65,37 +80,48 @@ makereport.string_scorepatterns = {  # remember, several entry lines can match a
     r"(conflict[sing]*|error[sing]*|problem[satic]*)": 2,
     r"(random[ly]*|sudden[ly]*|confus[ionges]*|miss[inges]*|unable|impossibl[ey]|not[- ]([a-z]+[- ])?(good|useful)|weird|strange|should[' ]no?t|can't|cannot|\bnot\b|sometimes|actual)": 2,
 }
+# TODO: pattern for multiple ! ?  ... but that needs exlusion of bolding (skip any long match?)
 
-# scoring of LABELS
+
+# regexp-based scoring of LABELS
+
 makereport.label_scorepatterns = {  # remember, several entry lines can match and will get summed
     r'support_need': 5,
     r'^support': 5,
     r'(emergenc[yies]*|critical|vuln)': 10
 }
 
-# scoring of issue types
+
+# regexp-based scoring of ISSUE TYPE
+
 makereport.issuetype_scorepatterns = {
     r'(defect|\bbug\b|vuln)': 20,
-    r'(rfe)': 15,
+    r'(rfe|enhanc)': 15,
     r'(epic)': 10,
     r'(story)': -10,
 }
 
-# scoring of LINKED issue types
+
+# regexp-based scoring of LINKED ISSUE TYPES - per linked issue!
+
 makereport.linked_issuetype_scorepatterns = {
     r'(defect|\bbug\b|vuln)': 10,
     r'(rfe)': 10,
 }
 
 
-# additional customized scoring
+# additional CUSTOMIZED scoring - called after everything else
+
 def mycustomscore(score, issue):
     f = issue.fields
     if f.resolution and f.resolution.name.lower() in ["duplicate", "rejected", "invalid"]:
         score.set(-1, "Duplicate/Rejected/Invalid")
+
 makereport.customscore = mycustomscore
 
-# custom issue grouping
+
+# ISSUE GROUPING  - return group key for the given issue; a tuple (sortkey,grouptext)
+
 def mycustomgroup(issue):
     f = issue.fields
     if f.resolution:
@@ -110,6 +136,7 @@ def mycustomgroup(issue):
         return 0,"Unconfirmed / To Do / New"
 
     return 2,"Confirmed / Progressing"
+
 makereport.customgroup = mycustomgroup
 
 
@@ -119,12 +146,13 @@ makereport.customgroup = mycustomgroup
 # Callouts that create our HTML reports (= mail content or served-up pages)
 #
 
-reports = {}   # type: Dict[str,Callable[[Any], str]]
-defaulthours = 7*24 + 4
+reports = {}   # type: Dict[str,Callable[[], str]]
+
+mytimefilter = " AND created >= -172h"   # 7*24 + 4
 
 
-def bap(hours=defaulthours):
-    issues = jiraconnection.search_issues(f"project = BAP AND created >= -{hours}h", maxResults=1000)
+def bap():
+    issues = jiraconnection.search_issues(f"project = BAP {mytimefilter}", maxResults=1000)
 
     html = makereport.getheader(title="BAP issues")
     html += Markup("<h1>BAP - Business Application Projects</h1>\n")
@@ -134,11 +162,11 @@ def bap(hours=defaulthours):
     return html
 reports["bap"] = bap
 
-from makereport import makecategoryreporter
-reports["core"] = makecategoryreporter(r"(core)", "Core issues", defaulthours=defaulthours, reportskippedcategories=False)
-reports["stream"] = makecategoryreporter(r"(stream)", "Stream issues", defaulthours=defaulthours,  reportskippedcategories=False)
-reports["management"] = makecategoryreporter(r"(centralized)", "Centralized Management issues", defaulthours=defaulthours, reportskippedcategories=False)
-reports["otherproducts"] = makecategoryreporter(r"(products|\bmfa)", "Other products issues", defaulthours=defaulthours,  reportskippedcategories=True)
+
+reports["core"] = makecategoryreporter(r"(core)", "Core issues", mytimefilter, reportskippedcategories=False)
+reports["stream"] = makecategoryreporter(r"(stream)", "Stream issues", mytimefilter, reportskippedcategories=False)
+reports["management"] = makecategoryreporter(r"(centralized)", "Centralized Management issues", mytimefilter, reportskippedcategories=False)
+reports["otherproducts"] = makecategoryreporter(r"(products|\bmfa)", "Other products issues", mytimefilter, reportskippedcategories=True)
 
 
 #
@@ -147,7 +175,7 @@ reports["otherproducts"] = makecategoryreporter(r"(products|\bmfa)", "Other prod
 
 if __name__ == "__asdfmain__":
     with open("output-otherproducts.html", "w", encoding="utf-8") as f:
-        f.write(reports["otherproducts"](24*60))
+        f.write(reports["otherproducts"]())
 
 elif __name__ == "__main__":
 

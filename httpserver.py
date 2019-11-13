@@ -10,8 +10,14 @@ import argparse
 import makereport
 import settings
 from markupsafe import Markup,escape
+from http.cookies import SimpleCookie
 
 isearch
+
+with open("jquery.min.js", "r") as f:
+    jquery_min_js = f.read()
+
+
 
 class MyHandler(BaseHTTPRequestHandler):
 
@@ -35,12 +41,14 @@ class MyHandler(BaseHTTPRequestHandler):
         m = re.match(r"""/report/([^/]+)/?(.*)""", parsed_path.path)
         if m:
             # m.group(2) is future extension
-            report = m.group(1)
-            if report in settings.reports:
-                html = settings.reports[report]()
-                self.ret200()
-                self.outhtml(html)
+            reportname = m.group(1)
+            if reportname in settings.reports:
+                self.report(reportname, m.group(2))
                 return
+
+        if parsed_path.path =="/jquery.min.js":
+            self.jqueryminjs()
+            return
 
         # 404!
         message_parts = [
@@ -83,6 +91,20 @@ class MyHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(message.encode('utf-8'))
 
+
+    def report(self, reportname, future):
+        html = settings.reports[reportname]()
+        cookies = SimpleCookie(self.headers.get("Cookie", ""))
+
+        html = html.replace(Markup("</body>"),
+            Markup("""
+<script src="{}/jquery.min.js" defer="defer"></script>
+</body>
+""".format(settings.emailoptions["include_own_server_url"]))
+        )
+        self.ret200()
+        self.outhtml(html)
+
     def frontpage(self):
         self.ret200()
         self.outhtml(makereport.getheader(title="Reports available", mybasehref=""))
@@ -99,7 +121,15 @@ Reports available:
 </ul>""")
         self.outhtml(makereport.getfooter())
 
+    def jqueryminjs(self):
+        self.send_response(200)
+        self.send_header("Cache-Control", "max-age=1800")
+        self.send_header("Cache-Control", "public")
+        self.send_header('Content-Type',
+                        'application/javascript; charset=utf-8')
+        self.end_headers()
 
+        self.wfile.write(jquery_min_js.encode("utf-8"))
 
 
 def serve(addrport):

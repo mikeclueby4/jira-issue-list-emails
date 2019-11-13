@@ -366,9 +366,9 @@ def getfooter(outputter = None, finalizer = None):
 # Settings utilities
 #
 
-def makecategoryreporter(categoryfilter, title, defaulthours = 24*7+4, reportskippedcategories=False):
+def makecategoryreporter(categoryfilter, title, mytimefilter, reportskippedcategories=False):
     """Returns a freshly-created reporter function that works on projects in given category/ies"""
-    def __func(hours = defaulthours):
+    def __func():
         reportskipped = reportskippedcategories
         html = makereport.getheader(title=title)
 
@@ -389,7 +389,7 @@ def makecategoryreporter(categoryfilter, title, defaulthours = 24*7+4, reportski
             else:
                 matchedprojects += 1
                 debug(f"      {project.key} ({project.name}) category {project.projectCategory.name} ...")
-                issues = jiraconnection.search_issues(f"project = {project.key} AND created >= -{hours}h", maxResults=1000)
+                issues = jiraconnection.search_issues(f"project = {project.key} {mytimefilter}", maxResults=1000)
                 reporthtml = makereport.render(issues)
                 if len(reporthtml)<1:
                     emptyprojects.append(project.key + " - " + project.name)
