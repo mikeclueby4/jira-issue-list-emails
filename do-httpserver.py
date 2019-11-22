@@ -94,7 +94,7 @@ class MyHandler(BaseHTTPRequestHandler):
 
     def report(self, reportname, future):
         html = settings.reports[reportname]()
-        cookies = SimpleCookie(self.headers.get("Cookie", ""))
+        cookies = SimpleCookie(self.headers.get("Cookie", ""))  # type: ignore
 
         html = html.replace(Markup("</body>"),
             Markup("""

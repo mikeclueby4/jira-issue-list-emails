@@ -152,7 +152,9 @@ mytimefilter = " AND created >= -172h"   # 7*24 + 4
 
 
 def bap():
-    issues = jiraconnection.search_issues(f"project = BAP {mytimefilter}", maxResults=1000)
+    issues = jiraconnection.search_issues(f"project = BAP {mytimefilter}",
+        fields="*all",      # Note "*all" so we also get comments!
+        maxResults=1000)
 
     html = makereport.getheader(title="BAP issues")
     html += Markup("<h1>BAP - Business Application Projects</h1>\n")

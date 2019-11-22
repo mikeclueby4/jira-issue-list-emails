@@ -147,8 +147,10 @@ def scoreissues(issues):
     """
 
     for issue in issues:
-        issue.numcomments = len(jiraconnection.comments(issue.key))
         f = issue.fields
+        assert hasattr(f, "comment"), """Did you forget to add ", fields='*all'" in your .search_issues() ?"""
+        issue.numcomments = f.comment.total
+
         score = Score()
         score += (len(f.issuelinks), "Linked issues")
         score += (f.watches.watchCount, "Watchers")
@@ -389,7 +391,9 @@ def makecategoryreporter(categoryfilter, title, mytimefilter, reportskippedcateg
             else:
                 matchedprojects += 1
                 debug(f"      {project.key} ({project.name}) category {project.projectCategory.name} ...")
-                issues = jiraconnection.search_issues(f"project = {project.key} {mytimefilter}", maxResults=1000)
+                issues = jiraconnection.search_issues(f"project = {project.key} {mytimefilter}",
+                    fields="*all",      # Note "*all" so we also get comments!
+                    maxResults=1000)
                 reporthtml = makereport.render(issues)
                 if len(reporthtml)<1:
                     emptyprojects.append(project.key + " - " + project.name)
