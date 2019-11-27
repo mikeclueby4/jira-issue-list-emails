@@ -10,7 +10,10 @@ import argparse
 import makereport
 import settings
 from markupsafe import Markup,escape
-from http.cookies import SimpleCookie
+from http.cookies import BaseCookie,SimpleCookie
+import requests
+
+from settings import jiraoptions
 
 isearch
 
@@ -46,8 +49,30 @@ class MyHandler(BaseHTTPRequestHandler):
                 self.report(reportname, m.group(2))
                 return
 
+        if parsed_path.path=="/watchhelper.js":
+            self.watchhelperjs()
+            return
+
         if parsed_path.path =="/jquery.min.js":
             self.jqueryminjs()
+            return
+
+        if parsed_path.path in ["/rest/api/2/search"]:
+            r = requests.get(settings.jiraoptions["server"] + parsed_path.path + "?" + parsed_path.query,
+                headers={"Cookie": self.headers.get("Cookie", "")},  # Steal client cookies! Yes ladies and gentlemen, we're fully MITMing
+                proxies=settings.jiraoptions["proxies"],
+                stream=True
+            )
+            self.send_response(r.status_code, message=r.reason)
+            for k,v in r.headers.items():
+                print("  " + k + "=" + v)
+                self.send_header(k,v)
+            self.end_headers()
+            for chunk in r.iter_content(chunk_size=None):
+                print(len(chunk))
+                self.wfile.write(chunk)
+
+            print(r)
             return
 
         # 404!
@@ -98,9 +123,10 @@ class MyHandler(BaseHTTPRequestHandler):
 
         html = html.replace(Markup("</body>"),
             Markup("""
-<script src="{}/jquery.min.js" defer="defer"></script>
+<script src="{own_server_url}/jquery.min.js" defer="defer"></script>
+<script src="{own_server_url}/watchhelper.js" defer="defer"></script>
 </body>
-""".format(settings.emailoptions["include_own_server_url"]))
+""".format(own_server_url=settings.emailoptions["include_own_server_url"]))
         )
         self.ret200()
         self.outhtml(html)
@@ -130,6 +156,20 @@ Reports available:
         self.end_headers()
 
         self.wfile.write(jquery_min_js.encode("utf-8"))
+
+    def watchhelperjs(self):
+        with open("watchhelper.js", mode="r", encoding="utf-8") as f:
+            filecontents = f.read()
+        self.send_response(200)
+        self.send_header("Cache-Control", "max-age=10")
+        self.send_header("Cache-Control", "public")
+        self.send_header('Content-Type',
+                        'application/javascript; charset=utf-8')
+        self.end_headers()
+
+        self.wfile.write(filecontents.encode("utf-8"))
+
+
 
 
 def serve(addrport):
