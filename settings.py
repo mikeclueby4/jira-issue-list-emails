@@ -16,6 +16,7 @@ import makereport
 from myutils import isearch
 
 debug = print if (__name__ == "__main__") else lambda _ : _   # settings.py executed directly? more console output!
+makereport.debug = debug
 
 
 # options for EMAIL SENDING
@@ -124,10 +125,18 @@ makereport.customscore = mycustomscore
 
 def mycustomgroup(issue):
     f = issue.fields
-    if f.resolution:
-        if isearch(r"(fixed|done)", f.resolution.name):
-            return 3,"Resolved: Fixed/Done"
-        return  4,"Resolved: Other"
+
+    if f.resolution and not isearch(r"(fixed|done)", f.resolution.name):
+        return  6, "Resolved: Other"
+
+    if isearch(f.issuetype.name, "epic"):
+        return 4, "Epic"
+
+    if isearch(f.issuetype.name, "story"):
+        return 5, "Story"
+
+    if f.resolution:        # we test for "not fixed" above
+        return 3,"Resolved: Fixed/Done"
 
     if isearch(r"(need|wait|on[-_ .]?hold|defer)", f.status.name):
         return 1,"Waiting for something"
