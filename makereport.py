@@ -155,7 +155,11 @@ def scoreissues(issues):
         score += (len(f.issuelinks), "Linked issues")
         score += (f.watches.watchCount, "Watchers")
         score += (f.votes.votes * 2, "2 x Votes")
+        score += (len(f.versions) * 2, "2 x Versions")
+        score += (len(f.fixVersions) * 2, "2 x FixVersions")
         score += (issue.numcomments, "Comments")
+        score += (len(f.attachment), "Attachments")
+        score += (len(f.components) * 3, "3 x Components")
         score.patterns(f.issuetype.name, issuetype_scorepatterns, f"Type '{f.issuetype.name}' pattern ")
         score.patterns(f.summary, string_scorepatterns, "Summary pattern ")
         score.patterns(f.description, string_scorepatterns, "Description pattern ")
@@ -391,6 +395,7 @@ def makecategoryreporter(categoryfilter, title, mytimefilter, reportskippedcateg
             else:
                 matchedprojects += 1
                 debug(f"      {project.key} ({project.name}) category {project.projectCategory.name} ...")
+                print(f"  {project.name}...")
                 issues = jiraconnection.search_issues(f"project = {project.key} {mytimefilter}",
                     fields="*all",      # Note "*all" so we also get comments!
                     maxResults=1000)
