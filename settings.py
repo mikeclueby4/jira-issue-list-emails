@@ -179,14 +179,91 @@ reports["stream"] = makecategoryreporter(r"(stream)", "Stream issues", mytimefil
 reports["management"] = makecategoryreporter(r"(centralized)", "Centralized Management issues", mytimefilter, reportskippedcategories=False)
 reports["otherproducts"] = makecategoryreporter(r"(products|\bmfa)", "Other products issues", mytimefilter, reportskippedcategories=True)
 
+def tic_statustable():
+
+    html = makereport.getheader(title="TIC statuses from -30d")
+    html += Markup("<h1>TIC statuses from -30d</h1>\n")
+
+    history = []
+    startAt=0
+    maxResults=500
+    while True:
+        issues = jiraconnection.search_issues(f"project = TIC AND updated>=-365d",
+            fields="none",
+            expand="changelog",
+            startAt=startAt,
+            maxResults=maxResults,
+        )
+        print(f"{startAt} / {issues.total} ...")
+        if len(issues)<1:
+            break
+
+        for issue in issues:
+            changelog = issue.changelog
+            if changelog.total > changelog.maxResults:
+                changelog = jiraconnection.issue(issue.id).changelog
+            assert len(changelog.histories) == changelog.total
+            for h in changelog.histories:
+                for item in h.items:
+                    if item.field=="status":
+                        history.append({
+                            "date": h.created,
+                            "statusFrom": item.fromString,
+                            "statusTo": item.toString
+                        })
+
+
+        startAt+=maxResults
+
+    html += Markup("\n<table>\n")
+
+    history.sort(key = lambda hi: hi["date"])
+    statuscounts = {}
+    statusesseen = {}
+    nowperiod = False
+    lines = []
+    for hi in history:
+        now = hi["date"][0:13] # 2019-10-17T10
+        if not nowperiod:
+            nowperiod = now
+        if now!=nowperiod:
+            line = statuscounts.copy()
+            line["date"] = nowperiod
+            lines.append(line)
+            nowperiod = now
+        s = hi["statusFrom"]
+        statusesseen[s] = True
+        statuscounts[s] = max(-1 + statuscounts.get(s, 0), 0)
+        s = hi["statusTo"]
+        statusesseen[s] = True
+        statuscounts[s] = 1 + statuscounts.get(s, 0)
+
+    html+= Markup("<th>")
+    for status in statusesseen.keys():
+        html += Markup("<td>{}</td>").format(status)
+    html+= Markup("</th>\n")
+
+    for line in lines:
+        html += Markup("<tr><td>{}</td>").format(line["date"])
+        for status in statusesseen.keys():
+            html += Markup("<td>{}</td>").format(line.get(status, ""))
+        html += Markup("</tr>\n")
+
+
+    html += Markup("\n</table>\n")
+
+    html += makereport.getfooter()
+
+    return html
+
+reports["tic-statustable"] = tic_statustable
 
 #
 # Executing settings.py for test purposes?
 #
 
-if __name__ == "__asdfmain__":
-    with open("output-otherproducts.html", "w", encoding="utf-8") as f:
-        f.write(reports["otherproducts"]())
+if __name__ == "__main__":
+    tic_statustable()
 
 elif __name__ == "__main__":
 
