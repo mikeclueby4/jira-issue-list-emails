@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict
 
 from jira import JIRA
 from markupsafe import Markup, escape
+from datetime import date, datetime, timedelta
 
 from makereport import makecategoryreporter
 import makereport
@@ -181,72 +182,74 @@ reports["otherproducts"] = makecategoryreporter(r"(products|\bmfa)", "Other prod
 
 def tic_statustable():
 
-    html = makereport.getheader(title="TIC statuses from -30d")
-    html += Markup("<h1>TIC statuses from -30d</h1>\n")
+    html = makereport.getheader(title="TIC status history")
+    html += Markup("<h1>TIC status history</h1>\n")
 
     history = []
-    startAt=0
-    maxResults=500
-    while True:
-        issues = jiraconnection.search_issues(f"project = TIC AND updated>=-365d",
-            fields="none",
-            expand="changelog",
-            startAt=startAt,
-            maxResults=maxResults,
-        )
-        print(f"{startAt} / {issues.total} ...")
-        if len(issues)<1:
-            break
+    today=date.today()
+    def daterange(date1, date2): # sigh python why do I need this
+        for n in range(int ((date2 - date1).days)+1):
+            yield date1 + timedelta(n)
 
-        for issue in issues:
-            changelog = issue.changelog
-            if changelog.total > changelog.maxResults:
-                changelog = jiraconnection.issue(issue.id).changelog
-            assert len(changelog.histories) == changelog.total
-            for h in changelog.histories:
-                for item in h.items:
-                    if item.field=="status":
-                        history.append({
-                            "date": h.created,
-                            "statusFrom": item.fromString,
-                            "statusTo": item.toString
-                        })
+    columns = ["Date", "Vacation", "Weekday", "In New/Open", "(in Med/Low)", "Fixed", "In New", "Created"]
 
+    for day in daterange(today-timedelta(days=3*365), today):
+        he = []
 
-        startAt+=maxResults
+        he.append(day)
+
+        year=day.year
+        if date(year,6,15) <= day <= date(year,8,15):
+            he.append("Summer")
+        elif date(year,12,24) <= day:
+            he.append("Xmas")
+        elif day <= date(year,1,2):
+            he.append("NewYear")
+        else:
+            he.append("")
+
+        he.append(day.strftime("%a"))
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket AND Priority IN ("Low","Medium")
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
+AND status CHANGED TO "Ticket Fixed" ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket") ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC and type=Ticket
+AND created >= {day.isoformat()} and created < {(day + timedelta(1)).isoformat()} """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        print(he)
+        history.append(he)
+
 
     html += Markup("\n<table>\n")
 
-    history.sort(key = lambda hi: hi["date"])
-    statuscounts = {}
-    statusesseen = {}
-    nowperiod = False
-    lines = []
-    for hi in history:
-        now = hi["date"][0:13] # 2019-10-17T10
-        if not nowperiod:
-            nowperiod = now
-        if now!=nowperiod:
-            line = statuscounts.copy()
-            line["date"] = nowperiod
-            lines.append(line)
-            nowperiod = now
-        s = hi["statusFrom"]
-        statusesseen[s] = True
-        statuscounts[s] = max(-1 + statuscounts.get(s, 0), 0)
-        s = hi["statusTo"]
-        statusesseen[s] = True
-        statuscounts[s] = 1 + statuscounts.get(s, 0)
+    html+= Markup("<tr>")
+    for colname in columns:
+        html += Markup("<th>{}</th>").format(colname)
+    html+= Markup("</tr>\n")
 
-    html+= Markup("<th>")
-    for status in statusesseen.keys():
-        html += Markup("<td>{}</td>").format(status)
-    html+= Markup("</th>\n")
-
-    for line in lines:
-        html += Markup("<tr><td>{}</td>").format(line["date"])
-        for status in statusesseen.keys():
-            html += Markup("<td>{}</td>").format(line.get(status, ""))
+    for he in history:
+        html += Markup("<tr>")
+        for value in he:
+            html += Markup("<td>{}</td>").format(value)
         html += Markup("</tr>\n")
 
 
@@ -263,7 +266,9 @@ reports["tic-statustable"] = tic_statustable
 #
 
 if __name__ == "__main__":
-    tic_statustable()
+    with open("output-tic-statustable.html", "w", encoding="utf-8") as f:
+        f.write(tic_statustable())
+
 
 elif __name__ == "__main__":
 
