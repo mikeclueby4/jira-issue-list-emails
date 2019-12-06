@@ -10,12 +10,14 @@ from typing import Any, Callable, Dict
 
 from jira import JIRA
 from markupsafe import Markup, escape
+from datetime import date, datetime, timedelta
 
 from makereport import makecategoryreporter
 import makereport
 from myutils import isearch
 
 debug = print if (__name__ == "__main__") else lambda _ : _   # settings.py executed directly? more console output!
+makereport.debug = debug
 
 
 # options for EMAIL SENDING
@@ -124,10 +126,18 @@ makereport.customscore = mycustomscore
 
 def mycustomgroup(issue):
     f = issue.fields
-    if f.resolution:
-        if isearch(r"(fixed|done)", f.resolution.name):
-            return 3,"Resolved: Fixed/Done"
-        return  4,"Resolved: Other"
+
+    if f.resolution and not isearch(r"(fixed|done)", f.resolution.name):
+        return  6, "Resolved: Other"
+
+    if isearch(f.issuetype.name, "epic"):
+        return 4, "Epic"
+
+    if isearch(f.issuetype.name, "story"):
+        return 5, "Story"
+
+    if f.resolution:        # we test for "not fixed" above
+        return 3,"Resolved: Fixed/Done"
 
     if isearch(r"(need|wait|on[-_ .]?hold|defer)", f.status.name):
         return 1,"Waiting for something"
@@ -152,7 +162,9 @@ mytimefilter = " AND created >= -172h"   # 7*24 + 4
 
 
 def bap():
-    issues = jiraconnection.search_issues(f"project = BAP {mytimefilter}", maxResults=1000)
+    issues = jiraconnection.search_issues(f"project = BAP {mytimefilter}",
+        fields="*all",      # Note "*all" so we also get comments!
+        maxResults=1000)
 
     html = makereport.getheader(title="BAP issues")
     html += Markup("<h1>BAP - Business Application Projects</h1>\n")
@@ -168,14 +180,95 @@ reports["stream"] = makecategoryreporter(r"(stream)", "Stream issues", mytimefil
 reports["management"] = makecategoryreporter(r"(centralized)", "Centralized Management issues", mytimefilter, reportskippedcategories=False)
 reports["otherproducts"] = makecategoryreporter(r"(products|\bmfa)", "Other products issues", mytimefilter, reportskippedcategories=True)
 
+def tic_statustable():
+
+    html = makereport.getheader(title="TIC status history")
+    html += Markup("<h1>TIC status history</h1>\n")
+
+    history = []
+    today=date.today()
+    def daterange(date1, date2): # sigh python why do I need this
+        for n in range(int ((date2 - date1).days)+1):
+            yield date1 + timedelta(n)
+
+    columns = ["Date", "Vacation", "Weekday", "In New/Open", "(in Med/Low)", "Fixed", "In New", "Created"]
+
+    for day in daterange(today-timedelta(days=3*365), today):
+        he = []
+
+        he.append(day)
+
+        year=day.year
+        if date(year,6,15) <= day <= date(year,8,15):
+            he.append("Summer")
+        elif date(year,12,24) <= day:
+            he.append("Xmas")
+        elif day <= date(year,1,2):
+            he.append("NewYear")
+        else:
+            he.append("")
+
+        he.append(day.strftime("%a"))
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket AND Priority IN ("Low","Medium")
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
+AND status CHANGED TO "Ticket Fixed" ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket") ON "{day.isoformat()}" """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues(f"""project = TIC and type=Ticket
+AND created >= {day.isoformat()} and created < {(day + timedelta(1)).isoformat()} """,
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        print(he)
+        history.append(he)
+
+
+    html += Markup("\n<table>\n")
+
+    html+= Markup("<tr>")
+    for colname in columns:
+        html += Markup("<th>{}</th>").format(colname)
+    html+= Markup("</tr>\n")
+
+    for he in history:
+        html += Markup("<tr>")
+        for value in he:
+            html += Markup("<td>{}</td>").format(value)
+        html += Markup("</tr>\n")
+
+
+    html += Markup("\n</table>\n")
+
+    html += makereport.getfooter()
+
+    return html
+
+reports["tic-statustable"] = tic_statustable
 
 #
 # Executing settings.py for test purposes?
 #
 
-if __name__ == "__asdfmain__":
-    with open("output-otherproducts.html", "w", encoding="utf-8") as f:
-        f.write(reports["otherproducts"]())
+if __name__ == "__main__":
+    with open("output-tic-statustable.html", "w", encoding="utf-8") as f:
+        f.write(tic_statustable())
+
 
 elif __name__ == "__main__":
 
