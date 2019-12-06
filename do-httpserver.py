@@ -191,8 +191,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--port",
         type=int,
-        default=81,
-        help="Port to listen on (default:81 - since we assume Jira to be on port 80/443)",
+        default=80,
+        help="Port to listen on (default:80)",
     )
     args = parser.parse_args()
 

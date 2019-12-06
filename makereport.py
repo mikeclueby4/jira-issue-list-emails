@@ -137,8 +137,14 @@ class Score:
             ):
         '''Iterate over a dict of regex:scoreadjust and apply those that match text'''
         for pattern,adjust in patterns.items():
-            if re.search(pattern, text, flags=re.IGNORECASE):
-                self += (adjust, prefix + pattern)
+            if text is None:
+                return
+            try:
+                if re.search(pattern, text, flags=re.IGNORECASE):
+                    self += (adjust, prefix + pattern)
+            except TypeError as e:
+                print(f""""ERROR: pattern={repr(pattern)} text={repr(text)}: {e} """)
+
 
 
 def scoreissues(issues):
@@ -273,7 +279,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
 
         for issue in sorted(issues, key=lambda i: i.score.score, reverse=True):
             f = issue.fields
-            description = f.description.strip()
+            description = (f.description or "").strip()
             description = re.sub(r"(\r?\n)+", "\n", description)
             description = re.sub(r"\x1B\x5B[\x21-\x3F]*?[\x40-\x7E]", "", description)  # strip common ansi escape sequences
             description = str(escape(description))   # str to not trigger escaping in re.sub()

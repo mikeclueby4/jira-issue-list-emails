@@ -127,6 +127,9 @@ makereport.customscore = mycustomscore
 def mycustomgroup(issue):
     f = issue.fields
 
+    if isearch(r"(requirem)", f.issuetype.name):
+        return 7, "Requirements"
+
     if f.resolution and not isearch(r"(fixed|done)", f.resolution.name):
         return  6, "Resolved: Other"
 
@@ -259,13 +262,13 @@ AND created >= {day.isoformat()} and created < {(day + timedelta(1)).isoformat()
 
     return html
 
-reports["tic-statustable"] = tic_statustable
+# reports["tic-statustable"] = tic_statustable
 
 #
 # Executing settings.py for test purposes?
 #
 
-if __name__ == "__main__":
+if __name__ == "__amain__":
     with open("output-tic-statustable.html", "w", encoding="utf-8") as f:
         f.write(tic_statustable())
 
