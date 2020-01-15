@@ -65,7 +65,7 @@ for idx,prio in enumerate(priorities):
     if isearch("emergenc", prio.name):
         score += 30                                # +30 for emergencies
 
-    debug(f"    {prio.name} (id {prio.id}) = +{score}")
+    debug("    {prio.name} (id {prio.id}) = +{score}".format(**locals()))
     makereport.prioscores[prio.id] = score
 
 
@@ -165,7 +165,7 @@ mytimefilter = " AND created >= -172h"   # 7*24 + 4
 
 
 def bap():
-    issues = jiraconnection.search_issues(f"project = BAP {mytimefilter}",
+    issues = jiraconnection.search_issues("project = BAP {}".format(mytimefilter),
         fields="*all",      # Note "*all" so we also get comments!
         maxResults=1000)
 
@@ -190,13 +190,10 @@ def tic_statustable():
 
     history = []
     today=date.today()
-    def daterange(date1, date2): # sigh python why do I need this
-        for n in range(int ((date2 - date1).days)+1):
-            yield date1 + timedelta(n)
 
-    columns = ["Date", "Vacation", "Weekday", "In New/Open", "(in Med/Low)", "Fixed", "In New", "Created"]
+    columns = ["Date", "Vacation", "Weekday", "In New/Open", "(in Med/Low)", "(07:00)", "(12:00)", "In Fixed", "In New", "Created"]
 
-    for day in daterange(today-timedelta(days=3*365), today):
+    for day in daterange(today-timedelta(days=10), today):
         he = []
 
         he.append(day)
@@ -204,7 +201,7 @@ def tic_statustable():
         year=day.year
         if date(year,6,15) <= day <= date(year,8,15):
             he.append("Summer")
-        elif date(year,12,24) <= day:
+        elif date(year,12,23) <= day:
             he.append("Xmas")
         elif day <= date(year,1,2):
             he.append("NewYear")
@@ -213,28 +210,38 @@ def tic_statustable():
 
         he.append(day.strftime("%a"))
 
-        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
-AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{day.isoformat()}" """,
+        he.append( jiraconnection.search_issues("""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{}" """.format(day.isoformat()),
             fields="none", expand="none", maxResults=1,
         ).total )
 
-        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket AND Priority IN ("Low","Medium")
-AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{day.isoformat()}" """,
+        he.append( jiraconnection.search_issues("""project = TIC AND issuetype = Ticket AND Priority IN ("Low","Medium")
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{}" """.format(day.isoformat()),
             fields="none", expand="none", maxResults=1,
         ).total )
 
-        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
-AND status CHANGED TO "Ticket Fixed" ON "{day.isoformat()}" """,
+        he.append( jiraconnection.search_issues("""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{} 07:00" """.format(day.isoformat()),
             fields="none", expand="none", maxResults=1,
         ).total )
 
-        he.append( jiraconnection.search_issues(f"""project = TIC AND issuetype = Ticket
-AND status WAS IN ("Ticket New Ticket") ON "{day.isoformat()}" """,
+        he.append( jiraconnection.search_issues("""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket", "Ticket Open 1st Line") ON "{} 12:00" """.format(day.isoformat()),
             fields="none", expand="none", maxResults=1,
         ).total )
 
-        he.append( jiraconnection.search_issues(f"""project = TIC and type=Ticket
-AND created >= {day.isoformat()} and created < {(day + timedelta(1)).isoformat()} """,
+        he.append( jiraconnection.search_issues("""project = TIC AND issuetype = Ticket
+AND status CHANGED TO "Ticket Fixed" ON "{}" """.format(day.isoformat()),
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues("""project = TIC AND issuetype = Ticket
+AND status WAS IN ("Ticket New Ticket") ON "{}" """.format(day.isoformat()),
+            fields="none", expand="none", maxResults=1,
+        ).total )
+
+        he.append( jiraconnection.search_issues("""project = TIC and type=Ticket
+AND created >= {today} and created < {tomorrow} """.format(today=day.isoformat(), tomorrow=(day + timedelta(1)).isoformat()),
             fields="none", expand="none", maxResults=1,
         ).total )
 
@@ -268,7 +275,7 @@ AND created >= {day.isoformat()} and created < {(day + timedelta(1)).isoformat()
 # Executing settings.py for test purposes?
 #
 
-if __name__ == "__amain__":
+if __name__ == "__main__":
     with open("output-tic-statustable.html", "w", encoding="utf-8") as f:
         f.write(tic_statustable())
 
@@ -278,8 +285,8 @@ elif __name__ == "__main__":
     debug("\nRunning all registered reports and dumping to HTML files:")
 
     for name,function in reports.items():
-        outname = f"output-{name}.html"
-        debug(f"    {outname} ...")
+        outname = "output-{name}.html".format(**locals())
+        debug("    {outname} ...".format(**locals()))
         html = function()
 
         with open(outname, "w", encoding="utf-8") as f:

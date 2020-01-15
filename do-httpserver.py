@@ -174,7 +174,7 @@ Reports available:
 
 def serve(addrport):
     httpd = HTTPServer((args.listen,args.port), MyHandler)
-    print(f"Starting HTTP server on {addrport}")
+    print("Starting HTTP server on {addrport}".format(**locals()))
     httpd.serve_forever()
     print("Server died?!")
 
@@ -191,7 +191,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--port",
         type=int,
-        default=80,
+        default=81,
         help="Port to listen on (default:80)",
     )
     args = parser.parse_args()

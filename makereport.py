@@ -120,7 +120,7 @@ class Score:
         (adjust,text) = adjust_and_text
         if adjust!=0:
             self.score += adjust
-            self.log.append(f"""{"+" if adjust>=0 else ""}{adjust}: {text}""")
+            self.log.append("""{sign}{adjust}: {text}""".format(sign=("+" if adjust>=0 else ""),adjust=adjust,text=text))
         return self
 
     def set(self,
@@ -128,7 +128,7 @@ class Score:
             text    # type: str
             ):
         self.score = score
-        self.log.append(f"Force: {score}: {text}")
+        self.log.append("Force: {score}: {text}".format(**locals()))
 
     def patterns(self,  # type: Score
             text,       # type: str
@@ -143,7 +143,7 @@ class Score:
                 if re.search(pattern, text, flags=re.IGNORECASE):
                     self += (adjust, prefix + pattern)
             except TypeError as e:
-                print(f""""ERROR: pattern={repr(pattern)} text={repr(text)}: {e} """)
+                print(""""ERROR: pattern={repr(pattern)} text={repr(text)}: {e} """.format(**locals()))
 
 
 
@@ -166,7 +166,7 @@ def scoreissues(issues):
         score += (issue.numcomments, "Comments")
         score += (len(f.attachment), "Attachments")
         score += (len(f.components) * 3, "3 x Components")
-        score.patterns(f.issuetype.name, issuetype_scorepatterns, f"Type '{f.issuetype.name}' pattern ")
+        score.patterns(f.issuetype.name, issuetype_scorepatterns, "Type '{f.issuetype.name}' pattern ".format(**locals()))
         score.patterns(f.summary, string_scorepatterns, "Summary pattern ")
         score.patterns(f.description, string_scorepatterns, "Description pattern ")
         score += (prioscores[f.priority.id], "Priority " + f.priority.name)
@@ -174,8 +174,8 @@ def scoreissues(issues):
             score.patterns(label, label_scorepatterns, "Label pattern ")
         for link in f.issuelinks:
             li = getattr(link, "inwardIssue", None) or getattr(link, "outwardIssue", None)
-            score.patterns(li.fields.issuetype.name, linked_issuetype_scorepatterns, f"Linked issue type '{li.fields.issuetype.name}' pattern ")
-            score.patterns(li.fields.summary, string_scorepatterns, f"Linked issue summary {li.fields.issuetype.name} '{li.fields.summary}' pattern ")
+            score.patterns(li.fields.issuetype.name, linked_issuetype_scorepatterns, "Linked issue type '{li.fields.issuetype.name}' pattern ".format(**locals()))
+            score.patterns(li.fields.summary, string_scorepatterns, "Linked issue summary {li.fields.issuetype.name} '{li.fields.summary}' pattern ".format(**locals()))
 
         customscore(score, issue)
 
@@ -270,7 +270,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
 
     for groupidx,issues in sorted(groups.items()):
         (sort,groupname) = groupidx
-        print(f"           {sort} {groupname} - {len(issues)} issues")
+        print("           {sort} {groupname} - {numissues} issues".format(sort=sort,groupname=groupname,numissues=len(issues)))
 
         out(Markup("""
     <{groupheadertag} class="groupheader">{groupname}</{groupheadertag}>
@@ -297,7 +297,7 @@ def render(issues, groupheadertag = "h2", outputter = None, finalizer = None):
             if not f.resolution:
                 resolution = ""
             else:
-                resolution = f"Resolution: {f.resolution.name}"
+                resolution = "Resolution: {f.resolution.name}".format(**locals())
             scoretooltip = "\n".join(issue.score.log)
             out(Markup("""
                 <li class="issue-li">
@@ -378,7 +378,7 @@ def getfooter(outputter = None, finalizer = None):
 # Settings utilities
 #
 
-def makecategoryreporter(categoryfilter, title, mytimefilter, reportskippedcategories=False):
+def makecategoryreporter(categoryfilter, title, extrajql, reportskippedcategories=False):
     """Returns a freshly-created reporter function that works on projects in given category/ies"""
     def __func():
         reportskipped = reportskippedcategories
@@ -394,15 +394,15 @@ def makecategoryreporter(categoryfilter, title, mytimefilter, reportskippedcateg
         for project in allprojects:
 
             if not hasattr(project, "projectCategory"):
-                debug(f"      {project.key} ({project.name}) - No. No category.")
+                debug("      {project.key} ({project.name}) - No. No category.".format(**locals()))
             elif not isearch(categoryfilter, project.projectCategory.name):
                 skippedcategories[project.projectCategory.name] = project.key + " - " + project.name
-                debug(f"      {project.key} ({project.name}) - No. \"{project.projectCategory.name}\" does not match.")
+                debug("      {project.key} ({project.name}) - No. \"{project.projectCategory.name}\" does not match.".format(**locals()))
             else:
                 matchedprojects += 1
-                debug(f"      {project.key} ({project.name}) category {project.projectCategory.name} ...")
-                print(f"  {project.name}...")
-                issues = jiraconnection.search_issues(f"project = {project.key} {mytimefilter}",
+                debug("      {project.key} ({project.name}) category {project.projectCategory.name} ...".format(**locals()))
+                print("  {project.name}...".format(**locals()))
+                issues = jiraconnection.search_issues("project = {project.key} {extrajql}".format(extrajql=extrajql, project=project),
                     fields="*all",      # Note "*all" so we also get comments!
                     maxResults=1000)
                 reporthtml = makereport.render(issues)
