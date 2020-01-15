@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
 
     # getstatuscounts(daysago(i*7), daysago(i*7-6), history=history, step=1)
-    getstatuscounts(date(2019,12,1), date(2019,12,10), history=history, step=1)
+    getstatuscounts(daysago(10), daysago(1), history=history, step=1)
 
     if False:
         for i in range(4*52, 0, -1):
