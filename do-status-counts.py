@@ -51,6 +51,10 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
 
     for day in daterange(fromdate, todate, step=step):
 
+        if day==date.today():
+            print("SKIPPING today to not store incomplete data.")
+            continue
+
         def issuecount(jql):
             return jiraconnection.search_issues("""project = TIC AND issuetype = Ticket AND """ + jql,
                 fields="none", expand="none", maxResults=1,
@@ -58,20 +62,33 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
 
         daystr = day.isoformat()
 
+        fields = {
+            "innewopen": ( issuecount, """status WAS IN {} ON "{}" """.format(statuses["newopen"], daystr) ),
+            "innewopen_lowmed": ( issuecount, """Priority IN ("Low","Medium") AND status WAS IN {} ON "{}" """.format(statuses["newopen"], daystr) ),
+            "innewopen_07": ( issuecount, """status WAS IN {} ON "{} 07:00" """.format(statuses["newopen"], daystr) ),
+            "innewopen_12": ( issuecount, """status WAS IN {} ON "{} 12:30" """.format(statuses["newopen"], daystr) ),
+            "innewopen_17": ( issuecount, """status WAS IN {} ON "{} 17:30" """.format(statuses["newopen"], daystr) ),
+            "toprogress": ( issuecount, """status CHANGED TO {} ON "{}" """.format(statuses["indeterminate"], daystr) ),
+            "toresolved": ( issuecount, """resolution CHANGED FROM "" ON "{}" """.format(daystr) ),
+            "innew": ( issuecount, """status WAS IN {} ON "{}" """.format(statuses["new"], daystr) ),
+            "numcreated": ( issuecount, """created >= {today} AND created < {tomorrow} """.format(today=day.isoformat(), tomorrow=(day + timedelta(1)).isoformat()) )
+        }
+        
         he = {
             "day": daystr,
             "vacation": "",
-            "weekday": day.strftime("%a"),
-            "innewopen": issuecount("""status WAS IN {} ON "{}" """.format(statuses["newopen"], daystr) ),
-            "innewopen_lowmed": issuecount("""Priority IN ("Low","Medium") AND status WAS IN {} ON "{}" """.format(statuses["newopen"], daystr) ),
-            "innewopen_07": issuecount("""status WAS IN {} ON "{} 07:00" """.format(statuses["newopen"], daystr) ),
-            "innewopen_12": issuecount("""status WAS IN {} ON "{} 12:30" """.format(statuses["newopen"], daystr) ),
-            "innewopen_17": issuecount("""status WAS IN {} ON "{} 17:30" """.format(statuses["newopen"], daystr) ),
-            "toprogress": issuecount("""status CHANGED TO {} ON "{}" """.format(statuses["indeterminate"], daystr) ),
-            "toresolved": issuecount("""resolution CHANGED FROM "" ON "{}" """.format(daystr) ),
-            "innew": issuecount("""status WAS IN {} ON "{}" """.format(statuses["new"], daystr) ),
-            "numcreated": issuecount("""created >= {today} AND created < {tomorrow} """.format(today=day.isoformat(), tomorrow=(day + timedelta(1)).isoformat()) )
+            "weekday": day.strftime("%a")
         }
+
+        have =  history.get(daystr, {})
+        for k,v in fields.items():
+            if k in have and have[k]!=0:
+                he[k] = have[k]
+            else:
+                func,args = v
+                he[k] = func(args)
+
+
 
         year=day.year
         if date(year,6,15) <= day <= date(year,8,15):
@@ -101,7 +118,7 @@ if __name__ == "__main__":
 
 
     # getstatuscounts(daysago(i*7), daysago(i*7-6), history=history, step=1)
-    getstatuscounts(daysago(10), daysago(1), history=history, step=1)
+    getstatuscounts(daysago(65), daysago(1), history=history, step=1)
 
     if False:
         for i in range(4*52, 0, -1):
