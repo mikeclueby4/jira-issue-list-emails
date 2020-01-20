@@ -117,13 +117,12 @@ if __name__ == "__main__":
         return date.today() - timedelta(days=days)
 
 
-    # getstatuscounts(daysago(i*7), daysago(i*7-6), history=history, step=1)
     getstatuscounts(daysago(65), daysago(1), history=history, step=1)
 
     if False:
-        for i in range(4*52, 0, -1):
-            print(i)
-            getstatuscounts(daysago(i*7), daysago(i*7-6), history=history, step=1)
+        for d in daterange(date(2015,1,1), date.today(),7):
+            print(d)
+            getstatuscounts(d, d + timedelta(days=6), history=history, step=1)
 
             with open("tic-status-counts.json", "w") as f:
                 json.dump(history, f, indent=1)
