@@ -51,9 +51,9 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
 
     for day in daterange(fromdate, todate, step=step):
 
-        if day==date.today():
+        if day>=date.today():
             print("SKIPPING today to not store incomplete data.")
-            continue
+            break
 
         def issuecount(jql):
             return jiraconnection.search_issues("""project = TIC AND issuetype = Ticket AND """ + jql,
@@ -120,9 +120,9 @@ if __name__ == "__main__":
     getstatuscounts(daysago(65), daysago(1), history=history, step=1)
 
     if False:
-        for d in daterange(date(2015,1,1), date.today(),7):
+        for d in daterange(date(2015,1,1), daysago(0), 60):
             print(d)
-            getstatuscounts(d, d + timedelta(days=6), history=history, step=1)
+            getstatuscounts(d, d + timedelta(days=59), history=history, step=1)
 
             with open("tic-status-counts.json", "w") as f:
                 json.dump(history, f, indent=1)

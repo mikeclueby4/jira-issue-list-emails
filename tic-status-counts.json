@@ -25828,33 +25828,5 @@
   "toresolved": 1,
   "innew": 8,
   "numcreated": 3
- },
- "2020-01-21": {
-  "day": "2020-01-21",
-  "vacation": "",
-  "weekday": "Tue",
-  "innewopen": 35,
-  "innewopen_lowmed": 29,
-  "innewopen_07": 35,
-  "innewopen_12": 35,
-  "innewopen_17": 35,
-  "toprogress": 0,
-  "toresolved": 0,
-  "innew": 6,
-  "numcreated": 0
- },
- "2020-01-22": {
-  "day": "2020-01-22",
-  "vacation": "",
-  "weekday": "Wed",
-  "innewopen": 35,
-  "innewopen_lowmed": 29,
-  "innewopen_07": 35,
-  "innewopen_12": 35,
-  "innewopen_17": 35,
-  "toprogress": 0,
-  "toresolved": 0,
-  "innew": 6,
-  "numcreated": 0
  }
 }
