@@ -29,8 +29,12 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
     #
 
     statuses = {
-        "newopen":[],                               # custom
-        "indeterminate":[], "done":[], "new":[]     # these come straight from statusCategory.key
+        "newopen":[],                               # new, open, including "awaiting info"
+        "indeterminate":[], "done":[], "new":[],    # these come straight from statusCategory.key
+        "open2":[],               # including "awaiting info"
+        "devrel":[],              # any "dev"/"rel" including "awaiting info"
+        "open12wait":[],
+        "devrelwait":[]
     }
     for issuetype in jiraconnection._get_json("project/TIC/statuses"):
         if issuetype["name"].lower()=="ticket":
@@ -38,6 +42,17 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
                 statuses[ status["statusCategory"]["key"] ].append(status["name"])
                 if isearch(r"open.*1st", status["name"]) or status["statusCategory"]["key"]=="new":
                     statuses["newopen"].append(status["name"])
+                if isearch(r"open.*2nd", status["name"]):
+                    statuses["open2"].append(status["name"])
+                if isearch(r"(dev[e ]|release)", status["name"]):
+                    statuses["devrel"].append(status["name"])
+                if isearch(r"(1st|2nd).*wait", status["name"]):
+                    statuses["open12wait"].append(status["name"])
+                if isearch(r"(dev[e ]|release).*wait", status["name"]):
+                    statuses["devrelwait"].append(status["name"])
+
+
+
     for k,v in statuses.items():
         statuses[k] = '("' + '","'.join(v) + '")'   # Turn arrays into '("Foo","Bar")'
         print("... statuses[{}] = {}".format(k, statuses[k]))
@@ -63,17 +78,19 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
         daystr = day.isoformat()
 
         fields = {
-            "innewopen": ( issuecount, """status WAS IN {} ON "{}" """.format(statuses["newopen"], daystr) ),
             "innewopen_lowmed": ( issuecount, """Priority IN ("Low","Medium") AND status WAS IN {} ON "{}" """.format(statuses["newopen"], daystr) ),
             "innewopen_07": ( issuecount, """status WAS IN {} ON "{} 07:00" """.format(statuses["newopen"], daystr) ),
             "innewopen_12": ( issuecount, """status WAS IN {} ON "{} 12:30" """.format(statuses["newopen"], daystr) ),
             "innewopen_17": ( issuecount, """status WAS IN {} ON "{} 17:30" """.format(statuses["newopen"], daystr) ),
             "toprogress": ( issuecount, """status CHANGED TO {} ON "{}" """.format(statuses["indeterminate"], daystr) ),
             "toresolved": ( issuecount, """resolution CHANGED FROM "" ON "{}" """.format(daystr) ),
-            "innew": ( issuecount, """status WAS IN {} ON "{}" """.format(statuses["new"], daystr) ),
             "numcreated": ( issuecount, """created >= {today} AND created < {tomorrow} """.format(today=day.isoformat(), tomorrow=(day + timedelta(1)).isoformat()) )
         }
-        
+
+        for k,v in statuses.items():
+            if k not in ["indeterminate", "done"]:
+                fields["in"+k] = (issuecount, """status WAS IN {} ON "{}" """.format(v, daystr) )
+
         he = {
             "day": daystr,
             "vacation": "",
@@ -119,10 +136,10 @@ if __name__ == "__main__":
 
     getstatuscounts(daysago(65), daysago(1), history=history, step=1)
 
-    if False:
+    if True:
         for d in daterange(date(2015,1,1), daysago(0), 60):
             print(d)
-            getstatuscounts(d, d + timedelta(days=59), history=history, step=1)
+            getstatuscounts(d, d + timedelta(days=1), history=history, step=1)
 
             with open("tic-status-counts.json", "w") as f:
                 json.dump(history, f, indent=1)
