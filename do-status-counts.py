@@ -18,7 +18,7 @@ def daterange(date1, date2, step=1): # sigh python why do I need this
         yield date1 + timedelta(n)
 
 
-def getstatuscounts(fromdate, todate, history=None, step=1):
+def getstatuscounts(fromdate, todate, history=None, step=1, progresscallback=None):
 
     if history is None:
         history = {}
@@ -116,7 +116,9 @@ def getstatuscounts(fromdate, todate, history=None, step=1):
             he["vacation"]="NewYear"
 
         history[daystr] = he
-        print(he)
+        if progresscallback:
+            progresscallback(day, he, history)
+
 
     return history
 
@@ -133,16 +135,20 @@ if __name__ == "__main__":
     def daysago(days):
         return date.today() - timedelta(days=days)
 
-
-    getstatuscounts(daysago(65), daysago(1), history=history, step=1)
-
-    if True:
-        for d in daterange(date(2015,1,1), daysago(0), 60):
-            print(d)
-            getstatuscounts(d, d + timedelta(days=1), history=history, step=1)
-
+    from time import time as now
+    lastwrite = now()
+    def onprogress(day, he, history):
+        global lastwrite
+        print(he)
+        if now()-lastwrite>30:
+            print(" ... writing ...")
             with open("tic-status-counts.json", "w") as f:
                 json.dump(history, f, indent=1)
+            lastwrite=now()
+
+    getstatuscounts(daysago(65), daysago(1), history=history, step=1, progresscallback=onprogress)
+    # getstatuscounts(date(2015,1,1), daysago(1), history=history, step=10, progresscallback=onprogress)
+
 
     with open("tic-status-counts.json", "w") as f:
         json.dump(history, f, indent=1)
