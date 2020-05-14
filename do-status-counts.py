@@ -114,6 +114,9 @@ def getstatuscounts(fromdate, todate, history=None, step=1, progresscallback=Non
             he["vacation"]="Xmas"
         elif day <= date(year,1,2):
             he["vacation"]="NewYear"
+        elif date(2020,4,9) <= day <= date(2020,4,13):
+            he["vacation"]="Easter"
+
 
         history[daystr] = he
         if progresscallback:
