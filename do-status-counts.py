@@ -1,4 +1,5 @@
 
+import os
 from asyncio.windows_events import NULL
 from json.decoder import JSONDecodeError
 from typing import Any, Callable, Dict
@@ -25,17 +26,17 @@ def getstatuscounts(fromdate, todate, history=None, step=1, progresscallback=Non
 
     #
     # Grab lists of statuses for queries
-    # There is no jira-python API for this, so we call _get_json() manually
     #
 
     statuses = {
         "newopen":[],                               # new, open, including "awaiting info"
         "indeterminate":[], "done":[], "new":[],    # these come straight from statusCategory.key
         "open2":[],               # including "awaiting info"
-        "devrel":[],              # any "dev"/"rel" including "awaiting info"
-        "open12wait":[],
-        "devrelwait":[]
+        "devrel":[],              # any "dev"/"rel" including their "awaiting info"
+        "open12wait":[],          # Waiting during open1/open2
+        "devrelwait":[]           # Waiting during dev/rel
     }
+    # (There is no jira-python API for this, so we call _get_json() manually
     for issuetype in jiraconnection._get_json("project/TIC/statuses"):
         if issuetype["name"].lower()=="ticket":
             for status in issuetype["statuses"]:
@@ -52,7 +53,7 @@ def getstatuscounts(fromdate, todate, history=None, step=1, progresscallback=Non
                     statuses["devrelwait"].append(status["name"])
 
 
-
+    # transform statuses into name="combined JQL query"
     for k,v in statuses.items():
         statuses[k] = '("' + '","'.join(v) + '")'   # Turn arrays into '("Foo","Bar")'
         print("... statuses[{}] = {}".format(k, statuses[k]))
@@ -87,6 +88,7 @@ def getstatuscounts(fromdate, todate, history=None, step=1, progresscallback=Non
             "numcreated": ( issuecount, """created >= {today} AND created < {tomorrow} """.format(today=day.isoformat(), tomorrow=(day + timedelta(1)).isoformat()) )
         }
 
+        # .. also append (most) statuses to fields{} that we will query for
         for k,v in statuses.items():
             if k not in ["indeterminate", "done"]:
                 fields["in"+k] = (issuecount, """status WAS IN {} ON "{}" """.format(v, daystr) )
@@ -149,9 +151,12 @@ if __name__ == "__main__":
                 json.dump(history, f, indent=1)
             lastwrite=now()
 
-    getstatuscounts(daysago(65), daysago(1), history=history, step=1, progresscallback=onprogress)
+    getstatuscounts(daysago(65), daysago(0), history=history, step=1, progresscallback=onprogress)
     # getstatuscounts(date(2015,1,1), daysago(1), history=history, step=10, progresscallback=onprogress)
 
 
-    with open("tic-status-counts.json", "w") as f:
-        json.dump(history, f, indent=1)
+
+    for path in [".","e:/miol/support", "c:/users/miol/nextcloud/support"]:
+        if os.path.isdir(path):
+            with open(path + "/tic-status-counts.json", "w") as f:
+                json.dump(history, f, indent=1)
